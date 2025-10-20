@@ -1,8 +1,15 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
+import type { AIItineraryRequest, TravelPreferences } from "../../types";
+import {
+  ActivityLevel,
+  AccommodationType,
+  TransportationType,
+  DiningPreference,
+} from "../../types";
 
 interface AIItineraryGeneratorProps {
-  onGenerate?: (preferences: any) => void;
+  onGenerate?: (request: AIItineraryRequest) => void;
   loading?: boolean;
 }
 
@@ -15,33 +22,147 @@ const AIItineraryGenerator: React.FC<AIItineraryGeneratorProps> = ({
     duration: 7,
     budget: 1000,
     travelers: 2,
-    interests: [] as string[],
     startDate: "",
+    preferences: {
+      budget: 1000,
+      travelers: 2,
+      interests: ["SIGHTSEEING"], // Default to sightseeing
+      accommodationType: [AccommodationType.HOTEL], // Default to hotel
+      transportationPreference: [TransportationType.WALK], // Default to walking for local transport (no flights)
+      activityLevel: ActivityLevel.LOW, // Default to relaxed pace
+      diningPreference: [DiningPreference.LOCAL], // Default to local cuisine
+    } as TravelPreferences,
   });
 
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+
   const interestOptions = [
-    "Sightseeing",
-    "Adventure",
-    "Cultural",
-    "Food & Dining",
-    "Nightlife",
-    "Shopping",
-    "Nature",
-    "Relaxation",
+    "SIGHTSEEING",
+    "ADVENTURE",
+    "CULTURAL",
+    "FOOD",
+    "NIGHTLIFE",
+    "SHOPPING",
+    "NATURE",
+    "RELAXATION",
   ];
 
+  const accommodationOptions = Object.values(AccommodationType);
+  const transportationOptions = Object.values(TransportationType).filter(
+    (t) => t !== "FLIGHT"
+  ); // Remove FLIGHT
+  const diningOptions = Object.values(DiningPreference);
+  const activityLevels = Object.values(ActivityLevel);
+
   const handleInterestToggle = (interest: string) => {
+    const currentInterests = formData.preferences.interests;
+    const isCurrentlySelected = currentInterests.includes(interest);
+
+    let updatedInterests;
+    if (isCurrentlySelected && currentInterests.length > 1) {
+      // Remove only if there's more than one selected
+      updatedInterests = currentInterests.filter((i) => i !== interest);
+    } else if (!isCurrentlySelected) {
+      // Add if not selected
+      updatedInterests = [...currentInterests, interest];
+    } else {
+      // Keep at least one selected
+      updatedInterests = currentInterests;
+    }
+
     setFormData((prev) => ({
       ...prev,
-      interests: prev.interests.includes(interest)
-        ? prev.interests.filter((i) => i !== interest)
-        : [...prev.interests, interest],
+      preferences: {
+        ...prev.preferences,
+        interests: updatedInterests,
+      },
+    }));
+  };
+
+  const handleAccommodationToggle = (accommodation: AccommodationType) => {
+    const currentAccommodations = formData.preferences.accommodationType;
+    const isCurrentlySelected = currentAccommodations.includes(accommodation);
+
+    let updated;
+    if (isCurrentlySelected && currentAccommodations.length > 1) {
+      // Remove only if there's more than one selected
+      updated = currentAccommodations.filter((a) => a !== accommodation);
+    } else if (!isCurrentlySelected) {
+      // Add if not selected
+      updated = [...currentAccommodations, accommodation];
+    } else {
+      // Keep at least one selected
+      updated = currentAccommodations;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      preferences: { ...prev.preferences, accommodationType: updated },
+    }));
+  };
+
+  const handleTransportationToggle = (transport: TransportationType) => {
+    const currentTransports = formData.preferences.transportationPreference;
+    const isCurrentlySelected = currentTransports.includes(transport);
+
+    let updated;
+    if (isCurrentlySelected && currentTransports.length > 1) {
+      // Remove only if there's more than one selected
+      updated = currentTransports.filter((t) => t !== transport);
+    } else if (!isCurrentlySelected) {
+      // Add if not selected
+      updated = [...currentTransports, transport];
+    } else {
+      // Keep at least one selected
+      updated = currentTransports;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      preferences: { ...prev.preferences, transportationPreference: updated },
+    }));
+  };
+
+  const handleDiningToggle = (dining: DiningPreference) => {
+    const currentDining = formData.preferences.diningPreference;
+    const isCurrentlySelected = currentDining.includes(dining);
+
+    let updated;
+    if (isCurrentlySelected && currentDining.length > 1) {
+      // Remove only if there's more than one selected
+      updated = currentDining.filter((d) => d !== dining);
+    } else if (!isCurrentlySelected) {
+      // Add if not selected
+      updated = [...currentDining, dining];
+    } else {
+      // Keep at least one selected
+      updated = currentDining;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      preferences: { ...prev.preferences, diningPreference: updated },
     }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onGenerate?.(formData);
+
+    const request: AIItineraryRequest = {
+      destinations: [formData.destination], // Single destination as array
+      duration: formData.duration,
+      budget: formData.budget,
+      travelers: formData.travelers,
+      interests: formData.preferences.interests, // Use preferences.interests
+      startDate: new Date(formData.startDate),
+      preferences: {
+        ...formData.preferences,
+        budget: formData.budget,
+        travelers: formData.travelers,
+      },
+    };
+
+    onGenerate?.(request);
   };
 
   const containerVariants = {
@@ -63,20 +184,10 @@ const AIItineraryGenerator: React.FC<AIItineraryGeneratorProps> = ({
       variants={containerVariants}
       initial="hidden"
       animate="visible"
-      className="card max-w-2xl mx-auto"
+      className="bg-white rounded-xl shadow-lg p-6 max-w-2xl mx-auto"
     >
-      <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold text-gray-900 mb-4">
-          🤖 AI Travel Planner
-        </h2>
-        <p className="text-gray-600">
-          Tell us your preferences and let AI create the perfect itinerary for
-          you!
-        </p>
-      </div>
-
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Destination Input */}
+        {/* Destination Input - Single destination */}
         <motion.div variants={itemVariants}>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Where do you want to go?
@@ -88,7 +199,7 @@ const AIItineraryGenerator: React.FC<AIItineraryGeneratorProps> = ({
               setFormData((prev) => ({ ...prev, destination: e.target.value }))
             }
             placeholder="Enter destination (e.g., Paris, Tokyo, New York)"
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 text-gray-900 placeholder-gray-500"
             required
           />
         </motion.div>
@@ -110,7 +221,7 @@ const AIItineraryGenerator: React.FC<AIItineraryGeneratorProps> = ({
                   duration: parseInt(e.target.value),
                 }))
               }
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200 text-gray-900"
             />
           </motion.div>
 
@@ -122,13 +233,15 @@ const AIItineraryGenerator: React.FC<AIItineraryGeneratorProps> = ({
               type="number"
               min="100"
               value={formData.budget}
-              onChange={(e) =>
+              onChange={(e) => {
+                const budget = parseInt(e.target.value);
                 setFormData((prev) => ({
                   ...prev,
-                  budget: parseInt(e.target.value),
-                }))
-              }
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200"
+                  budget,
+                  preferences: { ...prev.preferences, budget },
+                }));
+              }}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200 text-gray-900"
             />
           </motion.div>
         </div>
@@ -141,13 +254,15 @@ const AIItineraryGenerator: React.FC<AIItineraryGeneratorProps> = ({
             </label>
             <select
               value={formData.travelers}
-              onChange={(e) =>
+              onChange={(e) => {
+                const travelers = parseInt(e.target.value);
                 setFormData((prev) => ({
                   ...prev,
-                  travelers: parseInt(e.target.value),
-                }))
-              }
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200"
+                  travelers,
+                  preferences: { ...prev.preferences, travelers },
+                }));
+              }}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200 text-gray-900"
             >
               <option value={1}>1 Traveler</option>
               <option value={2}>2 Travelers</option>
@@ -167,35 +282,268 @@ const AIItineraryGenerator: React.FC<AIItineraryGeneratorProps> = ({
               onChange={(e) =>
                 setFormData((prev) => ({ ...prev, startDate: e.target.value }))
               }
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200 text-gray-900"
               required
             />
           </motion.div>
         </div>
 
-        {/* Interests */}
-        <motion.div variants={itemVariants}>
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            What are you interested in?
-          </label>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {interestOptions.map((interest) => (
-              <motion.button
-                key={interest}
-                type="button"
-                onClick={() => handleInterestToggle(interest)}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className={`p-3 rounded-lg border text-sm font-medium transition-all duration-200 ${
-                  formData.interests.includes(interest)
-                    ? "bg-primary-600 text-white border-primary-600"
-                    : "bg-white text-gray-700 border-gray-300 hover:border-primary-300"
-                }`}
-              >
-                {interest}
-              </motion.button>
-            ))}
+        {/* Default Preferences with option to customize */}
+        <motion.div
+          variants={itemVariants}
+          className="bg-gray-50 p-4 rounded-lg"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-medium text-gray-700">
+              Travel Preferences
+            </h4>
+            <button
+              type="button"
+              onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+              className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1"
+            >
+              {showAdvancedOptions
+                ? "↑ Hide Options"
+                : "↓ Customize Preferences"}
+            </button>
           </div>
+
+          {!showAdvancedOptions && (
+            <div className="text-sm text-gray-600 space-y-1">
+              <p>
+                🎯 <strong>Focus:</strong>{" "}
+                {formData.preferences.interests.join(", ").replace(/_/g, " ")}
+              </p>
+              <p>
+                🚶 <strong>Pace:</strong>{" "}
+                {formData.preferences.activityLevel.replace("_", " ")}
+              </p>
+              <p>
+                🏨 <strong>Stay:</strong>{" "}
+                {formData.preferences.accommodationType
+                  .join(", ")
+                  .replace(/_/g, " ")}
+              </p>
+              <p>
+                🚶 <strong>Transport:</strong>{" "}
+                {formData.preferences.transportationPreference
+                  .join(", ")
+                  .replace(/_/g, " ")}
+              </p>
+              <p>
+                🍜 <strong>Dining:</strong>{" "}
+                {formData.preferences.diningPreference
+                  .join(", ")
+                  .replace(/_/g, " ")}
+              </p>
+            </div>
+          )}
+
+          {showAdvancedOptions && (
+            <div className="space-y-6 mt-4">
+              {/* Interests */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  What are you interested in?
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {interestOptions.map((interest) => (
+                    <button
+                      key={interest}
+                      type="button"
+                      onClick={() => handleInterestToggle(interest)}
+                      className={`p-3 rounded-lg text-xs font-medium transition-all duration-200 relative ${
+                        formData.preferences.interests.includes(interest)
+                          ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white border-2 border-blue-600 shadow-lg"
+                          : "bg-white text-gray-700 border-2 border-gray-300 hover:border-blue-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        {formData.preferences.interests.includes(interest) && (
+                          <span className="text-white">✓</span>
+                        )}
+                        {interest.replace("_", " ")}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Activity Level */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Activity Level
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {activityLevels.map((level) => (
+                    <button
+                      key={level}
+                      type="button"
+                      onClick={() =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          preferences: {
+                            ...prev.preferences,
+                            activityLevel: level,
+                          },
+                        }))
+                      }
+                      className={`p-3 rounded-lg text-sm font-medium transition-all duration-200 relative ${
+                        formData.preferences.activityLevel === level
+                          ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white border-2 border-blue-600 shadow-lg"
+                          : "bg-white text-gray-700 border-2 border-gray-300 hover:border-blue-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div className="flex items-center justify-center gap-1 mb-1">
+                          {formData.preferences.activityLevel === level && (
+                            <span className="text-white text-xs">✓</span>
+                          )}
+                          <span className="text-lg">
+                            {level === "LOW"
+                              ? "😌"
+                              : level === "MODERATE"
+                              ? "🚶"
+                              : "🏃"}
+                          </span>
+                        </div>
+                        {level.replace("_", " ")}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Accommodation */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Preferred Accommodation
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {accommodationOptions.map((accommodation) => (
+                    <button
+                      key={accommodation}
+                      type="button"
+                      onClick={() => handleAccommodationToggle(accommodation)}
+                      className={`p-3 rounded-lg text-xs font-medium transition-all duration-200 relative ${
+                        formData.preferences.accommodationType.includes(
+                          accommodation
+                        )
+                          ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white border-2 border-blue-600 shadow-lg"
+                          : "bg-white text-gray-700 border-2 border-gray-300 hover:border-blue-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div className="flex items-center justify-center gap-1 mb-1">
+                          {formData.preferences.accommodationType.includes(
+                            accommodation
+                          ) && <span className="text-white text-xs">✓</span>}
+                          <span className="text-sm">
+                            {accommodation === "HOTEL"
+                              ? "🏨"
+                              : accommodation === "HOSTEL"
+                              ? "🏠"
+                              : accommodation === "APARTMENT"
+                              ? "🏢"
+                              : accommodation === "RESORT"
+                              ? "🏖️"
+                              : accommodation === "BNB"
+                              ? "🏡"
+                              : "🏕️"}
+                          </span>
+                        </div>
+                        {accommodation.replace("_", " ")}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Transportation */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Preferred Transportation
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {transportationOptions.map((transport) => (
+                    <button
+                      key={transport}
+                      type="button"
+                      onClick={() => handleTransportationToggle(transport)}
+                      className={`p-3 rounded-lg text-xs font-medium transition-all duration-200 relative ${
+                        formData.preferences.transportationPreference.includes(
+                          transport
+                        )
+                          ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white border-2 border-blue-600 shadow-lg"
+                          : "bg-white text-gray-700 border-2 border-gray-300 hover:border-blue-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div className="flex items-center justify-center gap-1 mb-1">
+                          {formData.preferences.transportationPreference.includes(
+                            transport
+                          ) && <span className="text-white text-xs">✓</span>}
+                          <span className="text-sm">
+                            {transport === "TRAIN"
+                              ? "🚂"
+                              : transport === "BUS"
+                              ? "🚌"
+                              : transport === "CAR"
+                              ? "🚗"
+                              : transport === "BIKE"
+                              ? "🚲"
+                              : "🚶"}
+                          </span>
+                        </div>
+                        {transport.replace("_", " ")}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Dining */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Dining Preferences
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {diningOptions.map((dining) => (
+                    <button
+                      key={dining}
+                      type="button"
+                      onClick={() => handleDiningToggle(dining)}
+                      className={`p-3 rounded-lg text-xs font-medium transition-all duration-200 relative ${
+                        formData.preferences.diningPreference.includes(dining)
+                          ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white border-2 border-blue-600 shadow-lg"
+                          : "bg-white text-gray-700 border-2 border-gray-300 hover:border-blue-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div className="flex items-center justify-center gap-1 mb-1">
+                          {formData.preferences.diningPreference.includes(
+                            dining
+                          ) && <span className="text-white text-xs">✓</span>}
+                          <span className="text-sm">
+                            {dining === "LOCAL"
+                              ? "🍜"
+                              : dining === "INTERNATIONAL"
+                              ? "🌍"
+                              : dining === "VEGETARIAN"
+                              ? "🥗"
+                              : dining === "VEGAN"
+                              ? "🌱"
+                              : "🌾"}
+                          </span>
+                        </div>
+                        {dining.replace("_", " ")}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </motion.div>
 
         {/* Submit Button */}
@@ -208,7 +556,7 @@ const AIItineraryGenerator: React.FC<AIItineraryGeneratorProps> = ({
             className={`w-full py-4 px-6 rounded-lg font-semibold text-lg transition-all duration-200 ${
               loading
                 ? "bg-gray-400 text-gray-600 cursor-not-allowed"
-                : "bg-gradient-to-r from-primary-600 to-secondary-600 text-white hover:from-primary-700 hover:to-secondary-700 shadow-lg hover:shadow-xl"
+                : "bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 shadow-lg hover:shadow-xl"
             }`}
           >
             {loading ? (
