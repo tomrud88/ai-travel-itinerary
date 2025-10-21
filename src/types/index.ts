@@ -168,10 +168,129 @@ export interface AIItineraryRequest {
   preferences: TravelPreferences;
 }
 
+// AI-Generated itinerary structure (raw AI response)
+export interface AIGeneratedItinerary {
+  title: string;
+  description: string;
+  totalEstimatedCost: number;
+  dailyPlans: Array<{
+    day: number;
+    date: string;
+    theme: string;
+    activities: Array<{
+      time: string;
+      name: string;
+      address?: string;
+      description: string;
+      duration: string;
+      estimatedCost: number;
+      category: string;
+      walkingTime?: string;
+      googleMapsRating?: string;
+      openingHours?: string;
+      bestTimeToVisit?: string;
+      photoKeywords?: string[];
+      instagramSpots?: string[];
+      tips?: string[];
+      whyVisit?: string;
+      accessibility?: string;
+    }>;
+    meals: Array<{
+      type: string;
+      name: string;
+      address?: string;
+      cuisine: string;
+      estimatedCost: number;
+      priceRange?: string;
+      googleMapsRating?: string;
+      description: string;
+      signatureDishes?: string[];
+      walkingDistance?: string;
+      reservationRequired?: boolean;
+      openingHours?: string;
+      localTips?: string[];
+      averageMealDuration?: string;
+    }>;
+    accommodation?: {
+      name: string;
+      address?: string;
+      type: string;
+      estimatedCost: number;
+      location: string;
+      googleMapsRating?: string;
+      amenities?: string[];
+      whyRecommended: string;
+      nearbyAttractions?: string[];
+      bookingTips?: string;
+    };
+    localMarkets?: Array<{
+      name: string;
+      address?: string;
+      openingHours?: string;
+      bestTimeToVisit?: string;
+      specialties?: string[];
+      recommendedVendors?: string[];
+      averagePrices?: Record<string, string>;
+      parkingInfo?: string;
+    }>;
+    walkingRoute?: {
+      totalDistance: string;
+      estimatedWalkingTime: string;
+      routeHighlights?: string[];
+      photoOpportunities?: string[];
+      restStops?: string[];
+    };
+    dailyBudgetBreakdown?: {
+      activities: number;
+      meals: number;
+      transportation: number;
+      shopping?: number;
+      tips?: number;
+      total: number;
+    };
+  }>;
+  budgetBreakdown?: {
+    accommodation: number;
+    activities: number;
+    meals: number;
+    transportation: number;
+    shopping?: number;
+    emergencyFund?: number;
+    total: number;
+  };
+  localInsights?: {
+    bestTimeToVisit?: string;
+    weatherConsiderations?: string;
+    culturalEtiquette?: string[];
+    languageBasics?: string[];
+    transportation?: {
+      localTransport?: string;
+      walkingFriendliness?: string;
+      taxiServices?: string;
+      bikeRentals?: string;
+    };
+    safetyTips?: string[];
+    hiddenGems?: Array<{
+      name: string;
+      address?: string;
+      description: string;
+      bestTimeToVisit?: string;
+      howToFind?: string;
+    }>;
+  };
+  packingChecklist?: string[];
+  emergencyInfo?: {
+    localEmergencyNumber?: string;
+    nearestHospital?: string;
+    touristPolice?: string;
+    embassyContact?: string;
+  };
+}
+
 export interface AIItineraryResponse {
-  itinerary: Itinerary;
+  itinerary: AIGeneratedItinerary;
   confidence: number;
-  alternatives: Itinerary[];
+  alternatives: AIGeneratedItinerary[];
   tips: string[];
   warnings: string[];
 }

@@ -484,8 +484,8 @@ function App() {
         </section>
       </main>
 
-      <footer className="glass-effect mt-20 py-8 text-center border-t border-white/20">
-        <p className="text-blue-100">
+      <footer className="bg-white/10 backdrop-blur-sm mt-20 py-8 text-center border-t border-white/20">
+        <p className="text-white font-medium">
           Made with ❤️ for travelers by AI Travel Guide
         </p>
       </footer>

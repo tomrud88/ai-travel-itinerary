@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && vite build --ssr src/entry-server.tsx",
+    "build:ssr": "vite build --ssr src/entry-server.tsx",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "preview:ssr": "vite preview --ssr"
   },
   "dependencies": {
     "@ai-sdk/google": "^2.0.23",

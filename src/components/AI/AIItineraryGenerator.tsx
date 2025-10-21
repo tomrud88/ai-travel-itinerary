@@ -288,54 +288,81 @@ const AIItineraryGenerator: React.FC<AIItineraryGeneratorProps> = ({
           </motion.div>
         </div>
 
-        {/* Default Preferences with option to customize */}
+        {/* Travel Preferences with option to customize */}
         <motion.div
           variants={itemVariants}
-          className="bg-gray-50 p-4 rounded-lg"
+          className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 p-4 rounded-lg"
         >
           <div className="flex items-center justify-between mb-3">
-            <h4 className="text-sm font-medium text-gray-700">
-              Travel Preferences
+            <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              🎛️ Travel Preferences
             </h4>
             <button
               type="button"
               onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
-              className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1"
+              className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-4 py-2 rounded-lg font-medium hover:from-blue-600 hover:to-purple-600 transition-all duration-200 shadow-md text-sm flex items-center gap-2"
             >
-              {showAdvancedOptions
-                ? "↑ Hide Options"
-                : "↓ Customize Preferences"}
+              {showAdvancedOptions ? (
+                <>
+                  <span>↑</span> Hide Options
+                </>
+              ) : (
+                <>
+                  <span>⚙️</span> Customize Preferences
+                </>
+              )}
             </button>
           </div>
 
           {!showAdvancedOptions && (
-            <div className="text-sm text-gray-600 space-y-1">
-              <p>
-                🎯 <strong>Focus:</strong>{" "}
-                {formData.preferences.interests.join(", ").replace(/_/g, " ")}
+            <div className="bg-white/70 rounded-lg p-3 text-sm text-gray-700 space-y-2 border border-blue-200">
+              <p className="flex items-center gap-2">
+                <span className="text-blue-600">🎯</span>
+                <strong>Focus:</strong>{" "}
+                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
+                  {formData.preferences.interests.join(", ").replace(/_/g, " ")}
+                </span>
               </p>
-              <p>
-                🚶 <strong>Pace:</strong>{" "}
-                {formData.preferences.activityLevel.replace("_", " ")}
+              <p className="flex items-center gap-2">
+                <span className="text-green-600">🚶</span>
+                <strong>Pace:</strong>{" "}
+                <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">
+                  {formData.preferences.activityLevel.replace("_", " ")}
+                </span>
               </p>
-              <p>
-                🏨 <strong>Stay:</strong>{" "}
-                {formData.preferences.accommodationType
-                  .join(", ")
-                  .replace(/_/g, " ")}
+              <p className="flex items-center gap-2">
+                <span className="text-purple-600">🏨</span>
+                <strong>Stay:</strong>{" "}
+                <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded-full text-xs">
+                  {formData.preferences.accommodationType
+                    .join(", ")
+                    .replace(/_/g, " ")}
+                </span>
               </p>
-              <p>
-                🚶 <strong>Transport:</strong>{" "}
-                {formData.preferences.transportationPreference
-                  .join(", ")
-                  .replace(/_/g, " ")}
+              <p className="flex items-center gap-2">
+                <span className="text-orange-600">�</span>
+                <strong>Transport:</strong>{" "}
+                <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded-full text-xs">
+                  {formData.preferences.transportationPreference
+                    .join(", ")
+                    .replace(/_/g, " ")}
+                </span>
               </p>
-              <p>
-                🍜 <strong>Dining:</strong>{" "}
-                {formData.preferences.diningPreference
-                  .join(", ")
-                  .replace(/_/g, " ")}
+              <p className="flex items-center gap-2">
+                <span className="text-red-600">🍜</span>
+                <strong>Dining:</strong>{" "}
+                <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs">
+                  {formData.preferences.diningPreference
+                    .join(", ")
+                    .replace(/_/g, " ")}
+                </span>
               </p>
+              <div className="mt-3 pt-2 border-t border-blue-200">
+                <p className="text-blue-600 text-center text-xs italic">
+                  👆 Click "Customize Preferences" above to modify these
+                  settings
+                </p>
+              </div>
             </div>
           )}
 
