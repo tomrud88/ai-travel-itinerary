@@ -19,15 +19,45 @@ export function apiPlugin(): Plugin {
 
           req.on("end", async () => {
             try {
-              const { query, limit = 3 } = JSON.parse(body);
+              const {
+                query,
+                activityName,
+                activityAddress,
+                limit = 3,
+              } = JSON.parse(body);
 
-              if (!query) {
+              // Support both old format (query) and new format (activityName + activityAddress)
+              let optimizedQuery: string;
+              if (activityName !== undefined) {
+                const originalQuery = `${activityName} ${
+                  activityAddress || ""
+                }`.trim();
+                optimizedQuery = optimizeSearchQuery(
+                  activityName,
+                  activityAddress || ""
+                );
+                console.log(`🔍 Server query optimization:`, {
+                  activityName,
+                  activityAddress,
+                  original: originalQuery,
+                  optimized: optimizedQuery,
+                });
+              } else if (query) {
+                optimizedQuery = optimizeSearchQuery(query);
+                console.log(`🔍 Server query optimization (legacy):`, {
+                  original: query,
+                  optimized: optimizedQuery,
+                });
+              } else {
                 res.statusCode = 400;
-                res.end(JSON.stringify({ error: "Query parameter required" }));
+                res.end(
+                  JSON.stringify({
+                    error: "Query or activityName parameter required",
+                  })
+                );
                 return;
               }
 
-              const optimizedQuery = optimizeSearchQuery(query);
               const images = await searchFreepikImages(optimizedQuery, limit);
 
               res.setHeader("Content-Type", "application/json");
@@ -84,7 +114,7 @@ export function apiPlugin(): Plugin {
 
             req.on("end", async () => {
               try {
-                const { destination } = JSON.parse(body);
+                const { destination, limit = 15 } = JSON.parse(body);
 
                 if (!destination) {
                   res.statusCode = 400;
@@ -95,24 +125,32 @@ export function apiPlugin(): Plugin {
                 }
 
                 console.log(
-                  `🏙️ Server-side city gallery for: "${destination}"`
+                  `🏙️ Server-side city gallery for: "${destination}" (limit: ${limit})`
                 );
 
+                // Simple search terms for the city
                 const searchTerms = [
-                  `${destination} cityscape architecture`,
-                  `${destination} landmarks tourist attractions`,
-                  `${destination} skyline panorama`,
+                  destination,
+                  `${destination} spain`,
+                  `${destination} architecture`,
+                  `${destination} city`,
+                  `${destination} tourism`,
                 ];
 
                 const allImages: string[] = [];
                 const usedUrls = new Set<string>();
 
                 for (const term of searchTerms) {
-                  if (allImages.length >= 3) break;
+                  if (allImages.length >= limit) break;
 
-                  const images = await searchFreepikImages(term, 2);
+                  const remainingNeeded = limit - allImages.length;
+                  const images = await searchFreepikImages(
+                    term,
+                    Math.min(remainingNeeded, 5)
+                  );
+
                   for (const imageUrl of images) {
-                    if (allImages.length >= 3) break;
+                    if (allImages.length >= limit) break;
                     if (!usedUrls.has(imageUrl)) {
                       allImages.push(imageUrl);
                       usedUrls.add(imageUrl);

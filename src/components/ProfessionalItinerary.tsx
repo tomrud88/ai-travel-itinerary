@@ -24,6 +24,7 @@ export default function ProfessionalItinerary({
     // Common city names to look for
     const cities = [
       "Barcelona",
+      "Valencia",
       "Dublin",
       "Porto",
       "Madrid",
@@ -57,65 +58,50 @@ export default function ProfessionalItinerary({
 
   // Load city gallery and activity images
   useEffect(() => {
-    const loadCityImages = async () => {
+    const loadActivityImages = async () => {
+      // Get city gallery first
       setGalleryLoading(true);
       try {
         console.log(`Loading gallery for: ${destination}`);
-        const images = await ImageService.getCityGallery(destination);
-        setGalleryImages(images);
+        const cityImages = await ImageService.getCityGallery(destination);
+        setGalleryImages(cityImages.slice(0, 3)); // Keep top 3 for gallery display
+
+        // Collect all activities from all days
+        const allActivities = days.flatMap((day: any) => day.activities || []);
+
+        if (cityImages.length > 0 && allActivities.length > 0) {
+          // Distribute city images across activities
+          const distributedImages = ImageService.distributeCityImages(
+            cityImages,
+            allActivities.length
+          );
+
+          // Assign images to activities
+          const newActivityImages: Record<string, string> = {};
+          allActivities.forEach((activity: any, index: number) => {
+            if (activity?.name && distributedImages[index]) {
+              newActivityImages[activity.name] = distributedImages[index];
+            }
+          });
+
+          setActivityImages(newActivityImages);
+          console.log(
+            `� Assigned images to ${
+              Object.keys(newActivityImages).length
+            } activities`
+          );
+        } else {
+          console.log(`📷 No city images available for distribution`);
+        }
       } catch (error) {
-        console.error("Error loading city gallery:", error);
+        console.error("Error loading city images:", error);
         setGalleryImages([]);
       } finally {
         setGalleryLoading(false);
       }
     };
 
-    const loadActivityImages = async () => {
-      const imageCache: Record<string, string> = {};
-
-      // Collect all activities from all days
-      const allActivities = days.flatMap((day: any) => day.activities || []);
-
-      // Load images for each unique activity (with some delay to avoid rate limiting)
-      for (let i = 0; i < Math.min(allActivities.length, 12); i++) {
-        const activity = allActivities[i];
-        if (activity?.name && !imageCache[activity.name]) {
-          try {
-            const imageUrl = await ImageService.getActivityImage(
-              activity.name,
-              activity.address || ""
-            );
-
-            // Only cache if we got a real image from Freepik
-            if (imageUrl) {
-              imageCache[activity.name] = imageUrl;
-
-              // Update state for each image as it loads
-              setActivityImages((prev) => ({
-                ...prev,
-                [activity.name]: imageUrl,
-              }));
-            } else {
-              console.log(
-                `📷 No Freepik image available for: ${activity.name}`
-              );
-            }
-
-            // Small delay to avoid hitting API too quickly
-            await new Promise((resolve) => setTimeout(resolve, 300));
-          } catch (error) {
-            console.error(`Error loading image for ${activity.name}:`, error);
-          }
-        }
-      }
-    };
-
-    if (destination) {
-      loadCityImages();
-    }
-
-    if (days.length > 0) {
+    if (destination && days.length > 0) {
       loadActivityImages();
     }
   }, [destination, days]);
@@ -128,19 +114,6 @@ export default function ProfessionalItinerary({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
       >
-        {/* Hero Header - Simple gradient background without image */}
-        <div className="relative h-80 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-900 via-purple-900 to-pink-900"></div>
-
-          <div className="relative z-10 p-8 h-full flex flex-col justify-center">
-            <motion.h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight text-white">
-              {itinerary.title || "Your Perfect Journey"}
-            </motion.h1>
-            <motion.p className="text-xl opacity-90 max-w-2xl leading-relaxed text-white">
-              {itinerary.description || "An amazing adventure awaits"}
-            </motion.p>
-          </div>
-        </div>{" "}
         {/* City Gallery Section - Only show if Freepik images available */}
         {galleryImages.length > 0 && (
           <div className="px-8 py-6 bg-gray-50 border-b border-gray-200">
