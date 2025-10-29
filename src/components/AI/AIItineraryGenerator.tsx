@@ -213,7 +213,7 @@ const AIItineraryGenerator: React.FC<AIItineraryGeneratorProps> = ({
             <input
               type="number"
               min="1"
-              max="30"
+              max="4"
               value={formData.duration}
               onChange={(e) =>
                 setFormData((prev) => ({

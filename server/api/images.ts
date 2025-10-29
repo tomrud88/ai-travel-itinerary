@@ -217,6 +217,12 @@ export function optimizeSearchQuery(
     return "valencia old town historic";
   }
 
+  // Clean up problematic adjectives that might relate to food
+  cleanQuery = cleanQuery
+    .replace(/\b(milanese|barcelonese|valencian|parisian)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
   // Extract city name from address if provided
   let cityName = "";
   if (activityAddress) {

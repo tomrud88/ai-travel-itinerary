@@ -229,8 +229,8 @@ export default function ProfessionalItinerary({
                           ? "☀️"
                           : "🌆";
 
-                      // Take up to 4 activities total per day and filter by period using simple time prefixes.
-                      const allActivities = (day.activities || []).slice(0, 4);
+                      // Take up to 6 activities total per day and filter by period using simple time prefixes.
+                      const allActivities = (day.activities || []).slice(0, 6);
                       const timeRanges =
                         period === "Morning"
                           ? ["06", "07", "08", "09", "10", "11"]
@@ -245,19 +245,12 @@ export default function ProfessionalItinerary({
                           )
                       );
 
+                      // Limit each period to maximum 2 activities
+                      periodActivities = periodActivities.slice(0, 2);
+
+                      // Skip empty periods entirely - AI must generate all activities
                       if (periodActivities.length === 0) {
-                        periodActivities = [
-                          {
-                            name: "Free Time",
-                            time:
-                              period === "Morning"
-                                ? "09:00"
-                                : period === "Afternoon"
-                                ? "14:00"
-                                : "19:00",
-                            description: `Enjoy some free time to explore ${destination} at your own pace.`,
-                          },
-                        ];
+                        return null;
                       }
 
                       return (
@@ -271,14 +264,12 @@ export default function ProfessionalItinerary({
                             (activity: any, actIdx: number) => (
                               <div
                                 key={actIdx}
-                                className={`p-4 rounded-xl ${
-                                  activity.name === "Free Time"
-                                    ? "bg-blue-50 border border-blue-200"
-                                    : "bg-gray-50"
-                                }`}
+                                className="p-4 rounded-xl bg-gray-50"
                               >
-                                <div className="flex gap-4">
-                                  <div className="flex-shrink-0 text-center w-20">
+                                {/* Mobile Layout: Stack vertically */}
+                                <div className="flex flex-col md:flex-row gap-4">
+                                  {/* Time always at top on mobile, left on desktop */}
+                                  <div className="flex-shrink-0 text-center md:text-left md:w-20">
                                     <div className="text-blue-600 font-bold text-lg">
                                       {activity.time}
                                     </div>
@@ -289,18 +280,19 @@ export default function ProfessionalItinerary({
                                     )}
                                   </div>
 
-                                  {/* Activity Thumbnail Image - Only show if Freepik image available */}
+                                  {/* Image on top for mobile, side for desktop */}
                                   {activityImages[activity.name] && (
-                                    <div className="flex-shrink-0">
+                                    <div className="flex-shrink-0 self-center md:self-start">
                                       <img
                                         src={activityImages[activity.name]}
                                         alt={activity.name || "Activity"}
-                                        className="w-16 h-16 object-cover rounded-lg shadow-sm"
+                                        className="w-full max-w-xs md:w-32 md:h-32 h-48 object-cover rounded-lg shadow-sm mx-auto md:mx-0"
                                         loading="lazy"
                                       />
                                     </div>
                                   )}
 
+                                  {/* Text content */}
                                   <div className="flex-grow">
                                     <h5 className="font-bold text-gray-900 text-lg mb-2">
                                       {activity.name}

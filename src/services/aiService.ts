@@ -300,12 +300,23 @@ IMPORTANT: Include specific real location names, addresses, ratings, and detaile
 3. **HISTORICAL CONTEXT**: Include background stories, cultural significance, and interesting facts
 4. **SPECIFIC ADDRESSES**: Include full street addresses and neighborhoods  
 5. **AUTHENTIC EXPERIENCES**: Focus on what makes each location uniquely local and special
-6. **PRACTICAL DETAILS**: Include opening hours, best times to visit, and accessibility info
+6. **REAL VENUE NAMES**: Use actual restaurant names, specific landmark names, and real attraction titles - NO generic descriptions
+7. **PRACTICAL DETAILS**: Include opening hours, best times to visit, and accessibility info
 7. **LOCAL INSIGHTS**: Share insider tips, cultural etiquette, and what locals recommend
 8. **REALISTIC TIMING**: Account for actual walking distances and meaningful visit durations
+8. **MANDATORY TIME COVERAGE**: Every day MUST have at least 1 activity in each period: Morning, Afternoon, and Evening
+9. **EVENING ACTIVITY EXAMPLES**: Good: "Trattoria da Valentino", "Pont Neuf Bridge", "Flamenco show at Tablao Cordobés" - Bad: "Evening dining", "Sunset viewing", "Local restaurant"
 
 ## ACTIVITY STRUCTURE REQUIREMENTS:
-- **MAXIMUM 6 ACTIVITIES PER DAY**: 2 morning (6AM-12PM) + 2 afternoon (12PM-6PM) + 2 evening (6PM-12AM)
+- **MANDATORY DISTRIBUTION**: Each day MUST have at least 1 activity in each time period: Morning (6AM-12PM), Afternoon (12PM-6PM), and Evening (6PM-12AM)
+- **EVENING ACTIVITIES ARE CRITICAL**: EVERY DAY MUST HAVE AT LEAST ONE SPECIFIC EVENING ACTIVITY - NO EXCEPTIONS OR REJECTIONS
+- **SPECIFIC VENUES REQUIRED**: Every activity must be a real, specific place with actual names (e.g., "Ristorante Il Convivio Troiani" not "Evening Dining Experience")
+- **REAL ADDRESSES MANDATORY**: Every activity must include a specific street address, not just neighborhood names
+- **NO GENERIC ACTIVITIES**: ABSOLUTELY FORBIDDEN: "Evening Dining Experience", "Local Restaurant", "Traditional Restaurant", "Historic Bridge" - use actual business names
+- **EVENING EXAMPLES**: REQUIRED format: "Osteria del Borgo (Via dei Cappuccini 12)", "Le Comptoir du Relais (9 Carrefour de l'Odéon)", "Bar Marsella (Carrer de Sant Pau 65)"
+- **MINIMUM 3 ACTIVITIES PER DAY**: At least 1 morning + 1 afternoon + 1 evening activity per day
+- **MAXIMUM 6 ACTIVITIES PER DAY**: Up to 2 morning + 2 afternoon + 2 evening activities
+- **NO EMPTY TIME PERIODS**: Every Morning, Afternoon, and Evening section must contain at least one activity
 - **CONCISE DESCRIPTIONS**: Each activity description must be exactly 2 sentences - no more, no less
 - **RESTAURANT DESCRIPTIONS**: Each restaurant description must be exactly 2 sentences
 - **QUALITY OVER QUANTITY**: Focus on meaningful experiences rather than cramming many activities
@@ -337,7 +348,11 @@ IMPORTANT: Include specific real location names, addresses, ratings, and detaile
 5. Plan walking routes that connect attractions efficiently
 6. Include rest breaks and leisure time
 7. Recommend HOTELS in central, walkable locations
-8. Avoid rushed schedules - quality over quantity (MAX 6 activities per day: 2 morning, 2 afternoon, 2 evening)
+7. Focus on authentic local experiences and actual venue names
+8. **MANDATORY TIME DISTRIBUTION**: Each day must have minimum 1 activity in Morning (6AM-12PM), 1 in Afternoon (12PM-6PM), and 1 in Evening (6PM-12AM)
+9. Quality over quantity - maximum 6 activities per day total (2 morning, 2 afternoon, 2 evening)
+10. **NO EMPTY PERIODS**: Never leave Morning, Afternoon, or Evening sections without activities
+9. **CRITICAL**: Every single day MUST include at least one evening activity between 6PM-12AM (dinner, sunset viewing, evening walk, cultural event, etc.)
 9. Keep all descriptions to exactly 2 sentences for easy reading
 10. Include hidden gems and local favorites, not just tourist traps
 11. Consider weather and seasonal factors for ${startDate.toLocaleDateString()}

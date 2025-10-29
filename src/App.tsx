@@ -27,7 +27,7 @@ const mockDestinations = [
     name: "Paris",
     country: "France",
     imageUrl:
-      "https://images.unsplash.com/photo-1502602898536-47ad22581b52?w=800&q=80",
+      "https://images.unsplash.com/photo-1549144511-f099e773c147?w=800&q=80",
     description:
       "The City of Light offers romance, art, fashion, and cuisine in an enchanting European setting.",
     highlights: [

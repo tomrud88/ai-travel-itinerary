@@ -48,7 +48,7 @@ const DestinationCard: React.FC<DestinationCardProps> = ({
       onClick={() => onClick?.(destination.id)}
     >
       {/* Image Container */}
-      <div className="relative h-48 overflow-hidden rounded-t-xl">
+      <div className="relative h-64 overflow-hidden rounded-t-xl">
         <motion.img
           variants={imageVariants}
           src={destination.imageUrl}

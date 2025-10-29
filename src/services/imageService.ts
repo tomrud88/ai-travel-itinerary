@@ -137,8 +137,11 @@ export class ImageService {
     // Remove content in parentheses (often translations or descriptions)
     cleanQuery = cleanQuery.replace(/\(.*?\)/g, "");
 
-    // Remove extra whitespace
-    cleanQuery = cleanQuery.replace(/\s+/g, " ").trim();
+    // Clean up problematic adjectives that might relate to food instead of places
+    cleanQuery = cleanQuery
+      .replace(/\b(milanese|barcelonese|valencian|parisian)\b/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
 
     // Extract city name from address if provided
     let cityName = "";
