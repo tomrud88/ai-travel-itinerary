@@ -7,6 +7,23 @@ interface ProfessionalItineraryProps {
   onGenerateNew: () => void;
 }
 
+interface Activity {
+  name: string;
+  address?: string;
+  duration?: string;
+  time?: string;
+  type?: string;
+  description?: string;
+  price?: string;
+}
+
+interface Day {
+  day: number;
+  date?: string;
+  theme?: string;
+  activities: Activity[];
+}
+
 export default function ProfessionalItinerary({
   itinerary,
   onGenerateNew,
@@ -16,6 +33,90 @@ export default function ProfessionalItinerary({
   const [activityImages, setActivityImages] = useState<Record<string, string>>(
     {}
   );
+
+  // Get activity tag with color based on type/keywords
+  const getActivityTag = (activity: Activity) => {
+    const name = activity.name?.toLowerCase() || "";
+    const description = activity.description?.toLowerCase() || "";
+    const type = activity.type?.toLowerCase() || "";
+
+    // Define tag categories with colors
+    const tagConfig = [
+      {
+        keywords: [
+          "museum",
+          "gallery",
+          "art",
+          "exhibition",
+          "cultural",
+          "history",
+        ],
+        tag: "Culture",
+        color: "bg-purple-500 text-white",
+      },
+      {
+        keywords: [
+          "restaurant",
+          "café",
+          "food",
+          "dining",
+          "eat",
+          "meal",
+          "cuisine",
+        ],
+        tag: "Food",
+        color: "bg-orange-500 text-white",
+      },
+      {
+        keywords: ["park", "garden", "outdoor", "nature", "walking", "hiking"],
+        tag: "Nature",
+        color: "bg-green-500 text-white",
+      },
+      {
+        keywords: ["shopping", "market", "store", "boutique", "souvenir"],
+        tag: "Shopping",
+        color: "bg-pink-500 text-white",
+      },
+      {
+        keywords: [
+          "architecture",
+          "building",
+          "tower",
+          "cathedral",
+          "church",
+          "monument",
+        ],
+        tag: "Architecture",
+        color: "bg-blue-500 text-white",
+      },
+      {
+        keywords: ["nightlife", "bar", "club", "evening", "night", "drinks"],
+        tag: "Nightlife",
+        color: "bg-indigo-500 text-white",
+      },
+      {
+        keywords: ["beach", "water", "swimming", "seaside", "coast"],
+        tag: "Beach",
+        color: "bg-cyan-500 text-white",
+      },
+      {
+        keywords: ["entertainment", "show", "theater", "performance", "music"],
+        tag: "Entertainment",
+        color: "bg-red-500 text-white",
+      },
+    ];
+
+    const content = `${name} ${description} ${type}`;
+
+    for (const config of tagConfig) {
+      if (config.keywords.some((keyword) => content.includes(keyword))) {
+        return { tag: config.tag, color: config.color };
+      }
+    }
+
+    // Default tag
+    return { tag: "Activity", color: "bg-gray-500 text-white" };
+  };
 
   // Extract city name more intelligently
   const extractDestination = (title: string): string => {
@@ -67,31 +168,61 @@ export default function ProfessionalItinerary({
         setGalleryImages(cityImages.slice(0, 3)); // Keep top 3 for gallery display
 
         // Collect all activities from all days
-        const allActivities = days.flatMap((day: any) => day.activities || []);
+        const allActivities = days.flatMap((day: Day) => day.activities || []);
 
-        if (cityImages.length > 0 && allActivities.length > 0) {
-          // Distribute city images across activities
-          const distributedImages = ImageService.distributeCityImages(
-            cityImages,
-            allActivities.length
-          );
+        if (allActivities.length > 0) {
+          // Start loading activity images in parallel (non-blocking)
+          setGalleryLoading(false); // Allow city gallery to show immediately
 
-          // Assign images to activities
-          const newActivityImages: Record<string, string> = {};
-          allActivities.forEach((activity: any, index: number) => {
-            if (activity?.name && distributedImages[index]) {
-              newActivityImages[activity.name] = distributedImages[index];
-            }
-          });
-
-          setActivityImages(newActivityImages);
           console.log(
-            `� Assigned images to ${
-              Object.keys(newActivityImages).length
-            } activities`
+            `🚀 Starting parallel image fetch for ${allActivities.length} activities`
           );
+
+          // Create parallel promises for all activity images
+          const imagePromises = allActivities.map(
+            async (activity: Activity) => {
+              if (activity?.name) {
+                try {
+                  const activityImage = await ImageService.getActivityImage(
+                    activity.name,
+                    activity.address || ""
+                  );
+                  return { name: activity.name, image: activityImage };
+                } catch (error) {
+                  console.error(
+                    `Error fetching image for ${activity.name}:`,
+                    error
+                  );
+                  return { name: activity.name, image: null };
+                }
+              }
+              return { name: null, image: null };
+            }
+          );
+
+          // Execute all image fetches in parallel
+          Promise.all(imagePromises)
+            .then((results) => {
+              const newActivityImages: Record<string, string> = {};
+              let successCount = 0;
+
+              results.forEach((result) => {
+                if (result.name && result.image) {
+                  newActivityImages[result.name] = result.image;
+                  successCount++;
+                }
+              });
+
+              setActivityImages(newActivityImages);
+              console.log(
+                `📸 Parallel fetch complete: ${successCount}/${allActivities.length} activity images loaded`
+              );
+            })
+            .catch((error) => {
+              console.error("Error in parallel image fetching:", error);
+            });
         } else {
-          console.log(`📷 No city images available for distribution`);
+          setGalleryLoading(false);
         }
       } catch (error) {
         console.error("Error loading city images:", error);
@@ -117,9 +248,6 @@ export default function ProfessionalItinerary({
         {/* City Gallery Section - Only show if Freepik images available */}
         {galleryImages.length > 0 && (
           <div className="px-8 py-6 bg-gray-50 border-b border-gray-200">
-            <h3 className="text-2xl font-bold text-gray-900 mb-4 text-center">
-              🏛️ Discover {destination}
-            </h3>
             {galleryLoading ? (
               <div className="grid grid-cols-3 gap-4 max-w-4xl mx-auto">
                 <div className="col-span-2 aspect-[4/3] bg-gray-200 rounded-lg animate-pulse"></div>
@@ -178,17 +306,20 @@ export default function ProfessionalItinerary({
               </span>
             </div>
 
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight">
-              {days.length}-Day {destination} Trip
+            <h2 className="text-4xl md:text-5xl font-bold leading-tight bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              {days.length}-Day {destination} Adventure
             </h2>
 
-            <div className="text-sm text-gray-600 mt-1">
-              Total budget: ${itinerary?.totalEstimatedCost ?? "—"}
+            <div className="text-lg text-gray-700 mt-2 font-semibold">
+              Total budget:{" "}
+              <span className="text-green-600">
+                ${itinerary?.totalEstimatedCost ?? "—"}
+              </span>
             </div>
           </div>
 
-          <div className="prose prose-lg max-w-none text-gray-700">
-            <p>
+          <div className="prose prose-lg max-w-none text-gray-800">
+            <p className="text-lg font-medium leading-relaxed">
               {itinerary?.description ||
                 `Embark on a journey through ${destination} rich history.`}
             </p>
@@ -197,7 +328,7 @@ export default function ProfessionalItinerary({
         {/* Daily Itinerary */}
         <div className="p-8">
           <div className="space-y-8">
-            {days.map((day: any, dayIndex: number) => (
+            {days.map((day: Day, dayIndex: number) => (
               <motion.div
                 key={dayIndex}
                 initial={{ opacity: 0, y: 30 }}
@@ -205,16 +336,23 @@ export default function ProfessionalItinerary({
                 transition={{ delay: dayIndex * 0.06 }}
                 className="border border-gray-200 rounded-2xl overflow-hidden bg-white"
               >
-                <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-6 border-b border-gray-200">
+                <div className="bg-gradient-to-r from-blue-500 via-purple-500 to-indigo-500 p-6 border-b border-gray-200">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg">
+                    <div className="w-14 h-14 bg-white text-blue-600 rounded-full flex items-center justify-center font-bold text-xl shadow-lg">
                       {day.day}
                     </div>
                     <div>
-                      <h3 className="text-2xl font-bold text-gray-900">
-                        Day {day.day}: {day.theme}
+                      <h3 className="text-2xl font-bold text-white">
+                        Day {day.day}
                       </h3>
-                      <p className="text-gray-600 mt-1">{day.date}</p>
+                      <p className="text-blue-100 text-lg font-medium">
+                        {day.date}
+                      </p>
+                      {day.theme && (
+                        <p className="text-blue-100 mt-1 italic">
+                          "{day.theme}"
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -239,7 +377,7 @@ export default function ProfessionalItinerary({
                           : ["18", "19", "20", "21", "22", "23"];
 
                       let periodActivities = allActivities.filter(
-                        (activity: any) =>
+                        (activity: Activity) =>
                           timeRanges.some((t) =>
                             String(activity.time || "").startsWith(t)
                           )
@@ -255,60 +393,78 @@ export default function ProfessionalItinerary({
 
                       return (
                         <div key={period} className="space-y-4">
-                          <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2 border-b border-gray-200 pb-2">
-                            <span>{periodIcon}</span>
+                          <h4 className="text-xl font-bold text-gray-900 flex items-center gap-3 border-l-4 border-blue-500 pl-4 py-2 bg-gradient-to-r from-blue-50 to-transparent">
+                            <span className="text-2xl">{periodIcon}</span>
                             <span>{period}</span>
                           </h4>
 
                           {periodActivities.map(
-                            (activity: any, actIdx: number) => (
-                              <div
-                                key={actIdx}
-                                className="p-4 rounded-xl bg-gray-50"
-                              >
-                                {/* Mobile Layout: Stack vertically */}
-                                <div className="flex flex-col md:flex-row gap-4">
-                                  {/* Time always at top on mobile, left on desktop */}
-                                  <div className="flex-shrink-0 text-center md:text-left md:w-20">
-                                    <div className="text-blue-600 font-bold text-lg">
-                                      {activity.time}
+                            (activity: Activity, actIdx: number) => {
+                              const activityTag = getActivityTag(activity);
+                              return (
+                                <div
+                                  key={actIdx}
+                                  className="p-6 rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
+                                >
+                                  {/* Mobile Layout: Stack vertically */}
+                                  <div className="flex flex-col md:flex-row gap-4">
+                                    {/* Time always at top on mobile, left on desktop */}
+                                    <div className="flex-shrink-0 text-center md:text-left md:w-20">
+                                      <div className="text-blue-600 font-bold text-lg">
+                                        {activity.time}
+                                      </div>
+                                      {activity.duration && (
+                                        <div className="text-xs text-gray-500 mt-1">
+                                          {activity.duration}
+                                        </div>
+                                      )}
                                     </div>
-                                    {activity.duration && (
-                                      <div className="text-xs text-gray-500 mt-1">
-                                        {activity.duration}
+
+                                    {/* Image on top for mobile, side for desktop */}
+                                    {activityImages[activity.name] && (
+                                      <div className="flex-shrink-0 self-center md:self-start">
+                                        <img
+                                          src={activityImages[activity.name]}
+                                          alt={activity.name || "Activity"}
+                                          className="w-full max-w-sm md:w-48 md:h-36 h-48 object-cover rounded-lg shadow-md mx-auto md:mx-0"
+                                          loading="lazy"
+                                        />
                                       </div>
                                     )}
-                                  </div>
 
-                                  {/* Image on top for mobile, side for desktop */}
-                                  {activityImages[activity.name] && (
-                                    <div className="flex-shrink-0 self-center md:self-start">
-                                      <img
-                                        src={activityImages[activity.name]}
-                                        alt={activity.name || "Activity"}
-                                        className="w-full max-w-xs md:w-32 md:h-32 h-48 object-cover rounded-lg shadow-sm mx-auto md:mx-0"
-                                        loading="lazy"
-                                      />
-                                    </div>
-                                  )}
-
-                                  {/* Text content */}
-                                  <div className="flex-grow">
-                                    <h5 className="font-bold text-gray-900 text-lg mb-2">
-                                      {activity.name}
-                                    </h5>
-                                    {activity.address && (
-                                      <p className="text-sm text-gray-600 mb-2">
-                                        📍 {activity.address}
+                                    {/* Text content */}
+                                    <div className="flex-grow">
+                                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-3">
+                                        <h5 className="font-bold text-gray-900 text-lg">
+                                          {activity.name}
+                                        </h5>
+                                        <span
+                                          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${activityTag.color} flex-shrink-0`}
+                                        >
+                                          {activityTag.tag}
+                                        </span>
+                                      </div>
+                                      {activity.address && (
+                                        <p className="text-sm text-gray-600 mb-3 flex items-center gap-1">
+                                          <span className="text-gray-400">
+                                            📍
+                                          </span>
+                                          {activity.address}
+                                        </p>
+                                      )}
+                                      <p className="text-gray-800 leading-relaxed font-medium">
+                                        {activity.description}
                                       </p>
-                                    )}
-                                    <p className="text-gray-700 leading-relaxed">
-                                      {activity.description}
-                                    </p>
+                                      {activity.price && (
+                                        <p className="text-green-600 font-semibold mt-2">
+                                          💰 {activity.price}
+                                        </p>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            )
+                              );
+                            }
                           )}
                         </div>
                       );

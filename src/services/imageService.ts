@@ -103,9 +103,8 @@ export class ImageService {
     activityName: string,
     activityAddress: string = ""
   ): Promise<string | null> {
-    // For now, don't search for individual activities
-    // We'll use the city gallery distribution instead
-    return null;
+    // Use the getFreepikImage method for individual activity searches
+    return await this.getFreepikImage(activityName, activityAddress);
   }
 
   static distributeCityImages(
@@ -130,7 +129,9 @@ export class ImageService {
 
   static optimizeSearchQuery(
     activityName: string,
-    activityAddress: string = ""
+    activityAddress: string = "",
+    activityCategory?: string,
+    userInterests?: string[]
   ): string {
     let cleanQuery = activityName.trim();
 
@@ -140,6 +141,10 @@ export class ImageService {
     // Clean up problematic adjectives that might relate to food instead of places
     cleanQuery = cleanQuery
       .replace(/\b(milanese|barcelonese|valencian|parisian)\b/gi, "")
+      .replace(
+        /\b(charm|charming|beautiful|stunning|amazing|wonderful|lovely|historic|traditional|authentic|local|famous|popular|best|top)\b/gi,
+        ""
+      )
       .replace(/\s+/g, " ")
       .trim();
 
@@ -153,6 +158,18 @@ export class ImageService {
       if (cityMatch) {
         cityName = cityMatch[1];
       }
+    }
+
+    // Context-aware optimization based on activity category and interests
+    const categoryModifiers = this.getCategoryModifiers(
+      activityCategory,
+      userInterests
+    );
+
+    // If we have category modifiers, use them
+    if (categoryModifiers) {
+      const baseLocation = cityName || cleanQuery;
+      return `${baseLocation} ${categoryModifiers}`;
     }
 
     // Generic landmark optimizations (work for any city)
@@ -240,5 +257,52 @@ export class ImageService {
     }
 
     return cleanQuery;
+  }
+
+  private static getCategoryModifiers(
+    activityCategory?: string,
+    userInterests?: string[]
+  ): string | null {
+    // Primary category-based modifiers
+    const categoryMap: Record<string, string> = {
+      SIGHTSEEING: "architecture landmarks monuments tourist attractions",
+      CULTURAL: "museum art culture heritage historic sites",
+      FOOD: "restaurant cuisine local food dining",
+      SHOPPING: "shops markets boutiques shopping district",
+      NATURE: "park nature landscape outdoor scenic",
+      ADVENTURE: "outdoor activities adventure sports",
+      NIGHTLIFE: "bars clubs nightlife entertainment district",
+      RELAXATION: "spa wellness peaceful quiet places",
+    };
+
+    // Interest-based modifiers (more specific)
+    const interestMap: Record<string, string> = {
+      Architecture: "architecture buildings design",
+      History: "historic heritage monuments ancient",
+      Art: "art gallery museum cultural",
+      Food: "cuisine restaurant local food market",
+      Nature: "nature park landscape outdoor",
+      Photography: "scenic photogenic viewpoint landmark",
+      Shopping: "shopping boutique market local stores",
+      Nightlife: "nightlife bars entertainment district",
+      Museums: "museum art culture exhibitions",
+      Parks: "park garden green space nature",
+    };
+
+    // Check interests first (more specific)
+    if (userInterests && userInterests.length > 0) {
+      for (const interest of userInterests) {
+        if (interestMap[interest]) {
+          return interestMap[interest];
+        }
+      }
+    }
+
+    // Fall back to category
+    if (activityCategory && categoryMap[activityCategory]) {
+      return categoryMap[activityCategory];
+    }
+
+    return null;
   }
 }

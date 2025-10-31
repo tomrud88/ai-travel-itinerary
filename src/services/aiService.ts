@@ -98,8 +98,93 @@ export class AITravelService {
       budget,
       travelers,
       startDate,
-      // preferences are used implicitly through smart defaults in the prompt template
+      preferences,
     } = request;
+
+    // Convert preferences to descriptive text
+    const getActivityLevelText = (level: string) => {
+      switch (level) {
+        case "LOW":
+          return "Relaxed and comfortable pace";
+        case "MODERATE":
+          return "Balanced mix of activities and rest";
+        case "HIGH":
+          return "Active and adventurous with packed schedules";
+        default:
+          return "Moderate pace";
+      }
+    };
+
+    const getDiningPreferenceText = (prefs: string[]) => {
+      if (!prefs || prefs.length === 0)
+        return "Local cuisine and authentic experiences";
+      return prefs
+        .map((pref) => {
+          switch (pref) {
+            case "FINE_DINING":
+              return "Fine dining experiences";
+            case "STREET_FOOD":
+              return "Street food and casual dining";
+            case "LOCAL_CUISINE":
+              return "Traditional local cuisine";
+            case "VEGETARIAN":
+              return "Vegetarian-friendly options";
+            case "VEGAN":
+              return "Vegan cuisine";
+            case "GLUTEN_FREE":
+              return "Gluten-free dining";
+            default:
+              return pref.toLowerCase().replace("_", " ");
+          }
+        })
+        .join(", ");
+    };
+
+    const getTransportationText = (prefs: string[]) => {
+      if (!prefs || prefs.length === 0)
+        return "Walking and public transportation";
+      return prefs
+        .map((pref) => {
+          switch (pref) {
+            case "WALKING":
+              return "walking";
+            case "PUBLIC_TRANSPORT":
+              return "public transport (bus, train, metro)";
+            case "RENTAL_CAR":
+              return "rental car";
+            case "BICYCLE":
+              return "bicycle";
+            case "TAXI_RIDESHARE":
+              return "taxi and rideshare";
+            default:
+              return pref.toLowerCase().replace("_", " ");
+          }
+        })
+        .join(", ");
+    };
+
+    const getAccommodationText = (prefs: string[]) => {
+      if (!prefs || prefs.length === 0)
+        return "Hotels with good location and amenities";
+      return prefs
+        .map((pref) => {
+          switch (pref) {
+            case "HOTEL":
+              return "hotels";
+            case "HOSTEL":
+              return "hostels";
+            case "AIRBNB":
+              return "vacation rentals (Airbnb)";
+            case "BOUTIQUE":
+              return "boutique accommodations";
+            case "LUXURY":
+              return "luxury hotels and resorts";
+            default:
+              return pref.toLowerCase();
+          }
+        })
+        .join(", ");
+    };
 
     return `
 You are an expert travel planner AI. Create a detailed ${duration}-day travel itinerary for ${
@@ -114,13 +199,17 @@ You are an expert travel planner AI. Create a detailed ${duration}-day travel it
 - Travelers: ${travelers} people
 - Budget per person per day: $${Math.round(budget / travelers / duration)}
 
-## TRAVEL STYLE (Optimized for local exploration)
-- Focus: Sightseeing and cultural exploration (primary interest)
-- Pace: Relaxed and comfortable (LOW activity level)
-- Accommodation: Hotels with good location and amenities
-- Transportation: Walking, train, bus, car, or bike for local exploration (no flights within destination)
-- Dining: Local cuisine and authentic local experiences
-- Style: Immersive local experience rather than rushed tourism
+## TRAVEL STYLE (Based on user preferences)
+- Focus: ${
+      preferences.interests.length > 0
+        ? preferences.interests.join(", ")
+        : "Sightseeing and cultural exploration"
+    }
+- Pace: ${getActivityLevelText(preferences.activityLevel)}
+- Accommodation: ${getAccommodationText(preferences.accommodationType)}
+- Transportation: ${getTransportationText(preferences.transportationPreference)}
+- Dining: ${getDiningPreferenceText(preferences.diningPreference)}
+- Style: Personalized experience based on selected preferences
 
 ## RESPONSE FORMAT
 Please provide a detailed itinerary in JSON format with the following structure. 

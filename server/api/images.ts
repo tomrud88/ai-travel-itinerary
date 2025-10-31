@@ -148,7 +148,9 @@ async function makeFreepikRequest(
 
 export function optimizeSearchQuery(
   activityName: string,
-  activityAddress: string = ""
+  activityAddress: string = "",
+  activityCategory?: string,
+  userInterests?: string[]
 ): string {
   let cleanQuery = activityName.trim();
 
@@ -217,9 +219,13 @@ export function optimizeSearchQuery(
     return "valencia old town historic";
   }
 
-  // Clean up problematic adjectives that might relate to food
+  // Clean up problematic adjectives that might relate to food or vague descriptions
   cleanQuery = cleanQuery
     .replace(/\b(milanese|barcelonese|valencian|parisian)\b/gi, "")
+    .replace(
+      /\b(charm|charming|beautiful|stunning|amazing|wonderful|lovely|historic|traditional|authentic|local|famous|popular|best|top)\b/gi,
+      ""
+    )
     .replace(/\s+/g, " ")
     .trim();
 
@@ -243,35 +249,198 @@ export function optimizeSearchQuery(
     }
   }
 
-  // Barcelona-specific optimizations (keeping existing ones)
-  if (cleanQuery.toLowerCase().includes("sagrada")) {
-    return "Sagrada Familia Barcelona architecture Gaudi";
-  } else if (cleanQuery.toLowerCase().includes("boqueria")) {
-    return "La Boqueria market Barcelona food";
-  } else if (cleanQuery.toLowerCase().includes("picasso")) {
-    return "Picasso Museum Barcelona art";
-  } else if (cleanQuery.toLowerCase().includes("gothic quarter")) {
-    return "Gothic Quarter Barcelona medieval architecture";
-  } else if (cleanQuery.toLowerCase().includes("park güell")) {
-    return "Park Guell Barcelona Gaudi mosaic";
+  // Context-aware optimization based on activity category and interests
+  const categoryModifiers = getCategoryModifiers(
+    activityCategory,
+    userInterests
+  );
+
+  // If we have category modifiers, use them
+  if (categoryModifiers) {
+    const baseLocation = cityName || extractMainLocation(cleanQuery);
+    return `${baseLocation} ${categoryModifiers}`;
   }
 
-  // General optimizations for restaurants/bars
-  if (
-    cleanQuery.toLowerCase().includes("taberna") ||
-    cleanQuery.toLowerCase().includes("restaurante") ||
-    cleanQuery.toLowerCase().includes("bar ") ||
-    cleanQuery.toLowerCase().includes("lunch at") ||
-    cleanQuery.toLowerCase().includes("dinner at")
-  ) {
-    // For restaurants, use more generic terms
-    return "spanish food restaurant cuisine";
+  // Legacy specific optimizations for known patterns
+  if (isSpecificLandmark(cleanQuery)) {
+    return applyLandmarkOptimizations(cleanQuery, cityName);
   }
 
-  // Default: just add city name if available
+  // Default: add city name if available and not already included
   if (cityName && !cleanQuery.toLowerCase().includes(cityName.toLowerCase())) {
     return `${cleanQuery} ${cityName}`;
   }
 
   return cleanQuery;
+}
+
+function getCategoryModifiers(
+  activityCategory?: string,
+  userInterests?: string[]
+): string | null {
+  // Primary category-based modifiers
+  const categoryMap: Record<string, string> = {
+    SIGHTSEEING: "architecture landmarks monuments tourist attractions",
+    CULTURAL: "museum art culture heritage historic sites",
+    FOOD: "restaurant cuisine local food dining",
+    SHOPPING: "shops markets boutiques shopping district",
+    NATURE: "park nature landscape outdoor scenic",
+    ADVENTURE: "outdoor activities adventure sports",
+    NIGHTLIFE: "bars clubs nightlife entertainment district",
+    RELAXATION: "spa wellness peaceful quiet places",
+  };
+
+  // Interest-based modifiers (more specific)
+  const interestMap: Record<string, string> = {
+    Architecture: "architecture buildings design",
+    History: "historic heritage monuments ancient",
+    Art: "art gallery museum cultural",
+    Food: "cuisine restaurant local food market",
+    Nature: "nature park landscape outdoor",
+    Photography: "scenic photogenic viewpoint landmark",
+    Shopping: "shopping boutique market local stores",
+    Nightlife: "nightlife bars entertainment district",
+    Museums: "museum art culture exhibitions",
+    Parks: "park garden green space nature",
+  };
+
+  // Check interests first (more specific)
+  if (userInterests && userInterests.length > 0) {
+    for (const interest of userInterests) {
+      if (interestMap[interest]) {
+        return interestMap[interest];
+      }
+    }
+  }
+
+  // Fall back to category
+  if (activityCategory && categoryMap[activityCategory]) {
+    return categoryMap[activityCategory];
+  }
+
+  return null;
+}
+
+function extractMainLocation(query: string): string {
+  // Extract the main location/landmark name, removing descriptive words
+  const words = query.split(" ");
+  // Keep the first few meaningful words, usually the location name
+  return words.slice(0, 2).join(" ");
+}
+
+function isSpecificLandmark(query: string): boolean {
+  const landmarks = [
+    "lonja de la seda",
+    "silk exchange",
+    "valencia cathedral",
+    "catedral de valencia",
+    "mercado central",
+    "central market",
+    "ciudad de las artes",
+    "city of arts",
+    "plaza de la virgen",
+    "jardí del túria",
+    "turia garden",
+    "museu de belles arts",
+    "albufera",
+    "malvarrosa beach",
+    "el carmen",
+    "sagrada",
+    "boqueria",
+    "picasso",
+    "gothic quarter",
+    "park güell",
+  ];
+
+  const lowerQuery = query.toLowerCase();
+  return landmarks.some((landmark) => lowerQuery.includes(landmark));
+}
+
+function applyLandmarkOptimizations(query: string, cityName: string): string {
+  const lowerQuery = query.toLowerCase();
+
+  // Valencia-specific optimizations
+  if (
+    lowerQuery.includes("lonja de la seda") ||
+    lowerQuery.includes("silk exchange")
+  ) {
+    return "valencia architecture historic building";
+  }
+  if (
+    lowerQuery.includes("valencia cathedral") ||
+    lowerQuery.includes("catedral de valencia")
+  ) {
+    return "spain cathedral church architecture";
+  }
+  if (
+    lowerQuery.includes("mercado central") ||
+    lowerQuery.includes("central market")
+  ) {
+    return "spain market food fresh";
+  }
+  if (
+    lowerQuery.includes("ciudad de las artes") ||
+    lowerQuery.includes("city of arts and sciences")
+  ) {
+    return "modern architecture futuristic building";
+  }
+  if (lowerQuery.includes("plaza de la virgen")) {
+    return "spain plaza square historic";
+  }
+  if (
+    lowerQuery.includes("jardí del túria") ||
+    lowerQuery.includes("turia garden")
+  ) {
+    return "park garden green valencia";
+  }
+  if (
+    lowerQuery.includes("museu de belles arts") ||
+    lowerQuery.includes("museum of fine arts")
+  ) {
+    return "art museum paintings";
+  }
+  if (lowerQuery.includes("albufera")) {
+    return "lake nature valencia";
+  }
+  if (lowerQuery.includes("malvarrosa beach")) {
+    return "beach spain mediterranean";
+  }
+  if (lowerQuery.includes("el carmen")) {
+    return "valencia old town historic";
+  }
+
+  // Barcelona-specific optimizations
+  if (lowerQuery.includes("sagrada")) {
+    return "Sagrada Familia Barcelona architecture Gaudi";
+  }
+  if (lowerQuery.includes("boqueria")) {
+    return "La Boqueria market Barcelona food";
+  }
+  if (lowerQuery.includes("picasso")) {
+    return "Picasso Museum Barcelona art";
+  }
+  if (lowerQuery.includes("gothic quarter")) {
+    return "Gothic Quarter Barcelona medieval architecture";
+  }
+  if (lowerQuery.includes("park güell")) {
+    return "Park Guell Barcelona Gaudi mosaic";
+  }
+
+  // General restaurants/bars
+  if (
+    lowerQuery.includes("taberna") ||
+    lowerQuery.includes("restaurante") ||
+    lowerQuery.includes("bar ") ||
+    lowerQuery.includes("lunch at") ||
+    lowerQuery.includes("dinner at")
+  ) {
+    return "spanish food restaurant cuisine";
+  }
+
+  // Default: add city name if available
+  if (cityName && !lowerQuery.includes(cityName.toLowerCase())) {
+    return `${query} ${cityName}`;
+  }
+
+  return query;
 }
