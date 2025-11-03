@@ -7,9 +7,16 @@ export class ImageService {
 
   static async getFreepikImage(
     activityName: string,
-    activityAddress: string = ""
+    activityAddress: string = "",
+    destinationCity?: string
   ): Promise<string | null> {
-    const searchQuery = this.optimizeSearchQuery(activityName, activityAddress);
+    const searchQuery = this.optimizeSearchQuery(
+      activityName,
+      activityAddress,
+      undefined,
+      undefined,
+      destinationCity
+    );
     const cacheKey = searchQuery.toLowerCase();
 
     console.log(`🔍 Query optimization:`, {
@@ -101,10 +108,15 @@ export class ImageService {
 
   static async getActivityImage(
     activityName: string,
-    activityAddress: string = ""
+    activityAddress: string = "",
+    destinationCity?: string
   ): Promise<string | null> {
     // Use the getFreepikImage method for individual activity searches
-    return await this.getFreepikImage(activityName, activityAddress);
+    return await this.getFreepikImage(
+      activityName,
+      activityAddress,
+      destinationCity
+    );
   }
 
   static distributeCityImages(
@@ -131,7 +143,8 @@ export class ImageService {
     activityName: string,
     activityAddress: string = "",
     activityCategory?: string,
-    userInterests?: string[]
+    userInterests?: string[],
+    destinationCity?: string
   ): string {
     let cleanQuery = activityName.trim();
 
@@ -148,9 +161,9 @@ export class ImageService {
       .replace(/\s+/g, " ")
       .trim();
 
-    // Extract city name from address if provided
-    let cityName = "";
-    if (activityAddress) {
+    // Extract city name from address if provided, but prefer destinationCity parameter
+    let cityName = destinationCity || "";
+    if (!cityName && activityAddress) {
       // Use general city pattern - look for city before postal code
       const cityMatch = activityAddress.match(
         /,\s*([A-Za-z\u00C0-\u017F]+(?:\s+[A-Za-z\u00C0-\u017F]+)*),?\s*(?:\d{4,})/i
@@ -166,86 +179,25 @@ export class ImageService {
       userInterests
     );
 
-    // If we have category modifiers, use them
-    if (categoryModifiers) {
-      const baseLocation = cityName || cleanQuery;
+    // PREFERRED: Keep specific landmark names with city
+    // For example: "Central Sofia Market Hall" -> "Central Sofia Market Hall Sofia"
+    // For example: "Louvre Museum" -> "Louvre Museum Paris"
+    if (
+      cityName &&
+      !cleanQuery.toLowerCase().includes(cityName.toLowerCase())
+    ) {
+      return `${cleanQuery} ${cityName}`;
+    }
+
+    // If we have category modifiers but no city, use them as fallback
+    if (categoryModifiers && !cityName) {
+      const baseLocation = this.extractMainLocation(cleanQuery);
       return `${baseLocation} ${categoryModifiers}`;
     }
 
-    // Generic landmark optimizations (work for any city)
-    const landmarkPatterns = [
-      // Cathedrals and churches
-      {
-        keywords: ["cathedral", "catedral", "church", "basilica"],
-        replacement: "cathedral church architecture",
-      },
-
-      // Museums
-      {
-        keywords: ["museum", "museu", "museo"],
-        replacement: "museum art culture",
-      },
-
-      // Markets
-      {
-        keywords: ["market", "mercado", "mercat"],
-        replacement: "market food fresh local",
-      },
-
-      // Plazas and squares
-      {
-        keywords: ["plaza", "plaça", "square", "place"],
-        replacement: "plaza square historic architecture",
-      },
-
-      // Parks and gardens
-      {
-        keywords: ["park", "garden", "jardín", "jardí"],
-        replacement: "park garden green nature",
-      },
-
-      // Beaches
-      {
-        keywords: ["beach", "playa", "platja"],
-        replacement: "beach mediterranean coast",
-      },
-
-      // Modern architecture
-      {
-        keywords: ["city of arts", "ciudad de las artes"],
-        replacement: "modern architecture futuristic building",
-      },
-
-      // Historic buildings
-      {
-        keywords: ["palace", "palacio", "castell", "castle"],
-        replacement: "palace historic architecture",
-      },
-      {
-        keywords: ["silk exchange", "lonja"],
-        replacement: "historic building architecture",
-      },
-
-      // Restaurants and dining
-      {
-        keywords: [
-          "restaurant",
-          "restaurante",
-          "taberna",
-          "bar ",
-          "lunch at",
-          "dinner at",
-        ],
-        replacement: "restaurant food cuisine dining",
-      },
-    ];
-
-    // Apply pattern matching
-    const lowerQuery = cleanQuery.toLowerCase();
-    for (const pattern of landmarkPatterns) {
-      if (pattern.keywords.some((keyword) => lowerQuery.includes(keyword))) {
-        return pattern.replacement;
-      }
+    // Only use generic landmark optimization as last resort for very generic names
+    if (this.isVeryGenericLandmark(cleanQuery) && cityName) {
+      return this.applyGenericLandmarkOptimization(cleanQuery, cityName);
     }
 
     // Default: add city name if available and not already included
@@ -304,5 +256,79 @@ export class ImageService {
     }
 
     return null;
+  }
+
+  static extractMainLocation(query: string): string {
+    // Extract the main location/landmark name, removing descriptive words
+    const words = query.split(" ");
+    // Keep the first few meaningful words, usually the location name
+    return words.slice(0, 2).join(" ");
+  }
+
+  static isVeryGenericLandmark(query: string): boolean {
+    // Only apply generic optimization for very basic/generic terms
+    const genericTerms = [
+      "cathedral",
+      "church",
+      "museum",
+      "market",
+      "plaza",
+      "square",
+      "garden",
+      "park",
+      "beach",
+      "palace",
+      "castle",
+      "tower",
+      "bridge",
+      "fountain",
+      "restaurant",
+      "bar",
+      "café",
+    ];
+
+    const lowerQuery = query.toLowerCase().trim();
+
+    // Only return true if the query is EXACTLY one of these generic terms
+    // or is very short (less than 3 words)
+    return genericTerms.includes(lowerQuery) || query.split(" ").length <= 2;
+  }
+
+  static applyGenericLandmarkOptimization(
+    query: string,
+    cityName: string
+  ): string {
+    const lowerQuery = query.toLowerCase();
+
+    // Generic landmark type optimizations
+    if (lowerQuery.includes("cathedral") || lowerQuery.includes("church")) {
+      return `${cityName} cathedral church architecture`;
+    }
+    if (lowerQuery.includes("market") || lowerQuery.includes("mercado")) {
+      return `${cityName} market food fresh local`;
+    }
+    if (lowerQuery.includes("museum") || lowerQuery.includes("museu")) {
+      return `${cityName} museum art culture`;
+    }
+    if (lowerQuery.includes("plaza") || lowerQuery.includes("square")) {
+      return `${cityName} plaza square historic`;
+    }
+    if (lowerQuery.includes("garden") || lowerQuery.includes("park")) {
+      return `${cityName} park garden nature`;
+    }
+    if (
+      lowerQuery.includes("restaurant") ||
+      lowerQuery.includes("bar") ||
+      lowerQuery.includes("café")
+    ) {
+      return `${cityName} restaurant food cuisine dining`;
+    }
+
+    // Default: add city name if available
+    if (cityName && !lowerQuery.includes(cityName.toLowerCase())) {
+      return `${query} ${cityName}`;
+    }
+
+    return query;
   }
 }

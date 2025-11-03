@@ -160,65 +160,6 @@ export function optimizeSearchQuery(
   // Remove extra whitespace
   cleanQuery = cleanQuery.replace(/\s+/g, " ").trim();
 
-  // Valencia-specific optimizations (check first, before city extraction)
-  if (
-    cleanQuery.toLowerCase().includes("lonja de la seda") ||
-    cleanQuery.toLowerCase().includes("silk exchange")
-  ) {
-    return "valencia architecture historic building";
-  }
-
-  if (
-    cleanQuery.toLowerCase().includes("valencia cathedral") ||
-    cleanQuery.toLowerCase().includes("catedral de valencia")
-  ) {
-    return "spain cathedral church architecture";
-  }
-
-  if (
-    cleanQuery.toLowerCase().includes("mercado central") ||
-    cleanQuery.toLowerCase().includes("central market")
-  ) {
-    return "spain market food fresh";
-  }
-
-  if (
-    cleanQuery.toLowerCase().includes("ciudad de las artes") ||
-    cleanQuery.toLowerCase().includes("city of arts and sciences")
-  ) {
-    return "modern architecture futuristic building";
-  }
-
-  if (cleanQuery.toLowerCase().includes("plaza de la virgen")) {
-    return "spain plaza square historic";
-  }
-
-  if (
-    cleanQuery.toLowerCase().includes("jardí del túria") ||
-    cleanQuery.toLowerCase().includes("turia garden")
-  ) {
-    return "park garden green valencia";
-  }
-
-  if (
-    cleanQuery.toLowerCase().includes("museu de belles arts") ||
-    cleanQuery.toLowerCase().includes("museum of fine arts")
-  ) {
-    return "art museum paintings";
-  }
-
-  if (cleanQuery.toLowerCase().includes("albufera")) {
-    return "lake nature valencia";
-  }
-
-  if (cleanQuery.toLowerCase().includes("malvarrosa beach")) {
-    return "beach spain mediterranean";
-  }
-
-  if (cleanQuery.toLowerCase().includes("el carmen")) {
-    return "valencia old town historic";
-  }
-
   // Clean up problematic adjectives that might relate to food or vague descriptions
   cleanQuery = cleanQuery
     .replace(/\b(milanese|barcelonese|valencian|parisian)\b/gi, "")
@@ -229,46 +170,40 @@ export function optimizeSearchQuery(
     .replace(/\s+/g, " ")
     .trim();
 
-  // Extract city name from address if provided
-  let cityName = "";
-  if (activityAddress) {
-    // Look for Valencia/València specifically first
-    if (
-      activityAddress.toLowerCase().includes("valència") ||
-      activityAddress.toLowerCase().includes("valencia")
-    ) {
-      cityName = "Valencia";
-    } else {
-      // General city pattern - look for city before postal code
-      const cityMatch = activityAddress.match(
-        /,\s*([A-Za-z\u00C0-\u017F]+(?:\s+[A-Za-z\u00C0-\u017F]+)*),?\s*(?:\d{4,})/i
-      );
-      if (cityMatch) {
-        cityName = cityMatch[1];
-      }
-    }
-  }
-
   // Context-aware optimization based on activity category and interests
   const categoryModifiers = getCategoryModifiers(
     activityCategory,
     userInterests
   );
 
-  // If we have category modifiers, use them
-  if (categoryModifiers) {
-    const baseLocation = cityName || extractMainLocation(cleanQuery);
+  // Extract city name from address if provided
+  let cityName = "";
+  if (activityAddress) {
+    // General city pattern - look for city before postal code
+    const cityMatch = activityAddress.match(
+      /,\s*([A-Za-z\u00C0-\u017F]+(?:\s+[A-Za-z\u00C0-\u017F]+)*),?\s*(?:\d{4,})/i
+    );
+    if (cityMatch) {
+      cityName = cityMatch[1];
+    }
+  }
+
+  // PREFERRED: Keep specific landmark names with city
+  // For example: "Central Sofia Market Hall" -> "Central Sofia Market Hall Sofia"
+  // For example: "Louvre Museum" -> "Louvre Museum Paris"
+  if (cityName && !cleanQuery.toLowerCase().includes(cityName.toLowerCase())) {
+    return `${cleanQuery} ${cityName}`;
+  }
+
+  // If we have category modifiers but no city, use them as fallback
+  if (categoryModifiers && !cityName) {
+    const baseLocation = extractMainLocation(cleanQuery);
     return `${baseLocation} ${categoryModifiers}`;
   }
 
-  // Legacy specific optimizations for known patterns
-  if (isSpecificLandmark(cleanQuery)) {
+  // Only use generic landmark optimization as last resort for very generic names
+  if (isVeryGenericLandmark(cleanQuery) && cityName) {
     return applyLandmarkOptimizations(cleanQuery, cityName);
-  }
-
-  // Default: add city name if available and not already included
-  if (cityName && !cleanQuery.toLowerCase().includes(cityName.toLowerCase())) {
-    return `${cleanQuery} ${cityName}`;
   }
 
   return cleanQuery;
@@ -328,113 +263,75 @@ function extractMainLocation(query: string): string {
   return words.slice(0, 2).join(" ");
 }
 
-function isSpecificLandmark(query: string): boolean {
-  const landmarks = [
-    "lonja de la seda",
-    "silk exchange",
-    "valencia cathedral",
-    "catedral de valencia",
-    "mercado central",
-    "central market",
-    "ciudad de las artes",
-    "city of arts",
-    "plaza de la virgen",
-    "jardí del túria",
-    "turia garden",
-    "museu de belles arts",
-    "albufera",
-    "malvarrosa beach",
-    "el carmen",
-    "sagrada",
-    "boqueria",
-    "picasso",
-    "gothic quarter",
-    "park güell",
+function isVeryGenericLandmark(query: string): boolean {
+  // Only apply generic optimization for very basic/generic terms
+  const genericTerms = [
+    "cathedral",
+    "church",
+    "museum",
+    "market",
+    "plaza",
+    "square",
+    "garden",
+    "park",
+    "beach",
+    "palace",
+    "castle",
+    "tower",
+    "bridge",
+    "fountain",
+    "restaurant",
+    "bar",
+    "café",
   ];
 
-  const lowerQuery = query.toLowerCase();
-  return landmarks.some((landmark) => lowerQuery.includes(landmark));
+  const lowerQuery = query.toLowerCase().trim();
+
+  // Only return true if the query is EXACTLY one of these generic terms
+  // or is very short (less than 3 words)
+  return genericTerms.includes(lowerQuery) || query.split(" ").length <= 2;
 }
 
 function applyLandmarkOptimizations(query: string, cityName: string): string {
   const lowerQuery = query.toLowerCase();
 
-  // Valencia-specific optimizations
-  if (
-    lowerQuery.includes("lonja de la seda") ||
-    lowerQuery.includes("silk exchange")
-  ) {
-    return "valencia architecture historic building";
+  // Generic landmark type optimizations
+  if (lowerQuery.includes("cathedral") || lowerQuery.includes("church")) {
+    return `${cityName} cathedral church architecture`;
   }
-  if (
-    lowerQuery.includes("valencia cathedral") ||
-    lowerQuery.includes("catedral de valencia")
-  ) {
-    return "spain cathedral church architecture";
+  if (lowerQuery.includes("market") || lowerQuery.includes("mercado")) {
+    return `${cityName} market food fresh local`;
   }
-  if (
-    lowerQuery.includes("mercado central") ||
-    lowerQuery.includes("central market")
-  ) {
-    return "spain market food fresh";
+  if (lowerQuery.includes("museum") || lowerQuery.includes("museu")) {
+    return `${cityName} museum art culture`;
   }
-  if (
-    lowerQuery.includes("ciudad de las artes") ||
-    lowerQuery.includes("city of arts and sciences")
-  ) {
-    return "modern architecture futuristic building";
+  if (lowerQuery.includes("plaza") || lowerQuery.includes("square")) {
+    return `${cityName} plaza square historic`;
   }
-  if (lowerQuery.includes("plaza de la virgen")) {
-    return "spain plaza square historic";
+  if (lowerQuery.includes("garden") || lowerQuery.includes("park")) {
+    return `${cityName} park garden nature`;
   }
-  if (
-    lowerQuery.includes("jardí del túria") ||
-    lowerQuery.includes("turia garden")
-  ) {
-    return "park garden green valencia";
+  if (lowerQuery.includes("beach") || lowerQuery.includes("playa")) {
+    return `${cityName} beach seaside`;
   }
-  if (
-    lowerQuery.includes("museu de belles arts") ||
-    lowerQuery.includes("museum of fine arts")
-  ) {
-    return "art museum paintings";
+  if (lowerQuery.includes("palace") || lowerQuery.includes("palacio")) {
+    return `${cityName} palace architecture historic`;
   }
-  if (lowerQuery.includes("albufera")) {
-    return "lake nature valencia";
-  }
-  if (lowerQuery.includes("malvarrosa beach")) {
-    return "beach spain mediterranean";
-  }
-  if (lowerQuery.includes("el carmen")) {
-    return "valencia old town historic";
-  }
-
-  // Barcelona-specific optimizations
-  if (lowerQuery.includes("sagrada")) {
-    return "Sagrada Familia Barcelona architecture Gaudi";
-  }
-  if (lowerQuery.includes("boqueria")) {
-    return "La Boqueria market Barcelona food";
-  }
-  if (lowerQuery.includes("picasso")) {
-    return "Picasso Museum Barcelona art";
-  }
-  if (lowerQuery.includes("gothic quarter")) {
-    return "Gothic Quarter Barcelona medieval architecture";
-  }
-  if (lowerQuery.includes("park güell")) {
-    return "Park Guell Barcelona Gaudi mosaic";
+  if (lowerQuery.includes("castle") || lowerQuery.includes("castillo")) {
+    return `${cityName} castle fortress historic`;
   }
 
   // General restaurants/bars
   if (
     lowerQuery.includes("taberna") ||
     lowerQuery.includes("restaurante") ||
+    lowerQuery.includes("restaurant") ||
     lowerQuery.includes("bar ") ||
+    lowerQuery.includes("café") ||
     lowerQuery.includes("lunch at") ||
     lowerQuery.includes("dinner at")
   ) {
-    return "spanish food restaurant cuisine";
+    return `${cityName} restaurant cuisine food`;
   }
 
   // Default: add city name if available

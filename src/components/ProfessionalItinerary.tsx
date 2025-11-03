@@ -133,6 +133,15 @@ export default function ProfessionalItinerary({
       "Rome",
       "London",
       "Amsterdam",
+      "Sofia",
+      "Varna",
+      "Wrocław",
+      "Warsaw",
+      "Krakow",
+      "Prague",
+      "Vienna",
+      "Berlin",
+      "Munich",
     ];
 
     // Check if any city name is mentioned in the title
@@ -142,11 +151,25 @@ export default function ProfessionalItinerary({
       }
     }
 
-    // Fallback: take everything before the first colon and clean it
-    let extracted = title.split(":")[0].trim();
+    // Improved fallback extraction
+    let extracted = title.trim();
 
-    // Remove possessive forms like "Barcelona's Soul" -> "Barcelona"
-    extracted = extracted.replace(/'s\s+\w+$/i, "");
+    // Remove common title patterns
+    extracted = extracted.replace(/^(\d+)[-\s]?day\s+/i, ""); // Remove "2-Day" or "3 Day"
+    extracted = extracted.split(/[:\-–—]/)[0].trim(); // Split on colon, dash, or em-dash
+
+    // Remove possessive forms and descriptive parts
+    extracted = extracted.replace(/'s\s+.*$/i, ""); // "Wrocław's Enchanting..." -> "Wrocław"
+    extracted = extracted.replace(
+      /\s+(trip|adventure|journey|experience|guide).*$/i,
+      ""
+    ); // Remove trip/adventure etc
+
+    // Take only the first word/city name if it looks like a place name
+    const words = extracted.split(/\s+/);
+    if (words.length > 0 && words[0].length > 2) {
+      return words[0];
+    }
 
     return extracted || "destination";
   };
@@ -185,7 +208,8 @@ export default function ProfessionalItinerary({
                 try {
                   const activityImage = await ImageService.getActivityImage(
                     activity.name,
-                    activity.address || ""
+                    activity.address || "",
+                    destination
                   );
                   return { name: activity.name, image: activityImage };
                 } catch (error) {
@@ -473,6 +497,92 @@ export default function ProfessionalItinerary({
                 </div>
               </motion.div>
             ))}
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Travel Information Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 50 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8, delay: 0.4 }}
+        className="mt-8"
+      >
+        <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-8 shadow-lg border border-white/20">
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-8">
+            Travel Information
+          </h2>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            {/* Cultural Etiquette */}
+            <div className="bg-gradient-to-br from-pink-50 to-red-50 p-6 rounded-xl border border-pink-100">
+              <h3 className="text-xl font-bold text-pink-700 mb-4 flex items-center gap-2">
+                <span className="text-2xl">🤝</span>
+                Cultural Etiquette
+              </h3>
+              <ul className="text-gray-700 space-y-2">
+                {itinerary.localInsights?.culturalEtiquette
+                  ?.slice(0, 2)
+                  .map((tip: string, index: number) => (
+                    <li key={index}>• {tip}</li>
+                  )) || [
+                  <li key={0}>
+                    • Dress modestly when visiting religious sites
+                  </li>,
+                  <li key={1}>• Tipping 10-15% is customary at restaurants</li>,
+                ]}
+              </ul>
+            </div>
+
+            {/* Transportation */}
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-100">
+              <h3 className="text-xl font-bold text-blue-700 mb-4 flex items-center gap-2">
+                <span className="text-2xl">🚌</span>
+                Transportation
+              </h3>
+              <ul className="text-gray-700 space-y-2">
+                <li>
+                  •{" "}
+                  <strong>
+                    {itinerary.localInsights?.transportation?.localTransport ||
+                      "Metro/Subway:"}
+                  </strong>{" "}
+                  {itinerary.localInsights?.transportation?.localTransport
+                    ? ""
+                    : "Most efficient for city travel"}
+                </li>
+                <li>
+                  • <strong>Walking:</strong>{" "}
+                  {itinerary.localInsights?.transportation
+                    ?.walkingFriendliness ||
+                    "Best way to explore neighborhoods"}
+                </li>
+                <li>
+                  • <strong>Taxis:</strong>{" "}
+                  {itinerary.localInsights?.transportation?.taxiServices ||
+                    "Convenient but pricier option"}
+                </li>
+              </ul>
+            </div>
+
+            {/* Weather Considerations */}
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-xl border border-green-100">
+              <h3 className="text-xl font-bold text-green-700 mb-4 flex items-center gap-2">
+                <span className="text-2xl">🌦️</span>
+                Weather Considerations
+              </h3>
+              <div className="text-gray-700 space-y-2">
+                <p>
+                  {itinerary.localInsights?.weatherConsiderations ||
+                    "Pack layers for temperature changes and bring comfortable walking shoes."}
+                </p>
+                <p>
+                  {itinerary.localInsights?.bestTimeToVisit
+                    ? `Best time: ${itinerary.localInsights.bestTimeToVisit}`
+                    : "Check forecast before outdoor activities and carry sun protection."}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </motion.div>

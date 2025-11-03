@@ -213,15 +213,23 @@ You are an expert travel planner AI. Create a detailed ${duration}-day travel it
 
 ## RESPONSE FORMAT
 Please provide a detailed itinerary in JSON format with the following structure. 
-IMPORTANT: Include specific real location names, addresses, ratings, and detailed information:
+IMPORTANT: Include specific real location names, addresses, ratings, and detailed information.
+CRITICAL: Generate exactly ${duration} days - create ${duration} separate day objects in the dailyPlans array.
 
 {
   "title": "Descriptive title for the ${duration}-day ${destinations[0]} trip",
   "description": "Brief overview focusing on relaxed sightseeing and cultural immersion",
   "totalEstimatedCost": number,
   "dailyPlans": [
+    // REQUIRED: Create exactly ${duration} day objects here (Day 1${
+      duration > 1
+        ? `, Day 2${duration > 2 ? ", Day 3" : ""}${
+            duration > 3 ? ", etc." : ""
+          }`
+        : ""
+    })
     {
-      "day": number,
+      "day": 1,
       "date": "YYYY-MM-DD",
       "theme": "Daily theme (e.g., 'Historic City Center', 'Local Markets & Culture')",
       "activities": [
@@ -382,19 +390,20 @@ IMPORTANT: Include specific real location names, addresses, ratings, and detaile
 }
 
 ## CRITICAL REQUIREMENTS:
-1. **REAL LOCATIONS ONLY**: Use actual business names, restaurants, hotels, and attractions that exist in ${
+1. **EXACT DAY COUNT**: You MUST generate exactly ${duration} days of itinerary - NO MORE, NO LESS. If asked for 2 days, provide Day 1 AND Day 2.
+2. **REAL LOCATIONS ONLY**: Use actual business names, restaurants, hotels, and attractions that exist in ${
       destinations[0]
     }
-2. **RICH DESCRIPTIONS**: Provide detailed, engaging descriptions that paint a vivid picture of each location
-3. **HISTORICAL CONTEXT**: Include background stories, cultural significance, and interesting facts
-4. **SPECIFIC ADDRESSES**: Include full street addresses and neighborhoods  
-5. **AUTHENTIC EXPERIENCES**: Focus on what makes each location uniquely local and special
-6. **REAL VENUE NAMES**: Use actual restaurant names, specific landmark names, and real attraction titles - NO generic descriptions
-7. **PRACTICAL DETAILS**: Include opening hours, best times to visit, and accessibility info
-7. **LOCAL INSIGHTS**: Share insider tips, cultural etiquette, and what locals recommend
-8. **REALISTIC TIMING**: Account for actual walking distances and meaningful visit durations
-8. **MANDATORY TIME COVERAGE**: Every day MUST have at least 1 activity in each period: Morning, Afternoon, and Evening
-9. **EVENING ACTIVITY EXAMPLES**: Good: "Trattoria da Valentino", "Pont Neuf Bridge", "Flamenco show at Tablao Cordobés" - Bad: "Evening dining", "Sunset viewing", "Local restaurant"
+3. **RICH DESCRIPTIONS**: Provide detailed, engaging descriptions that paint a vivid picture of each location
+4. **HISTORICAL CONTEXT**: Include background stories, cultural significance, and interesting facts
+5. **SPECIFIC ADDRESSES**: Include full street addresses and neighborhoods  
+6. **AUTHENTIC EXPERIENCES**: Focus on what makes each location uniquely local and special
+7. **REAL VENUE NAMES**: Use actual restaurant names, specific landmark names, and real attraction titles - NO generic descriptions
+8. **PRACTICAL DETAILS**: Include opening hours, best times to visit, and accessibility info
+9. **LOCAL INSIGHTS**: Share insider tips, cultural etiquette, and what locals recommend
+10. **REALISTIC TIMING**: Account for actual walking distances and meaningful visit durations
+11. **MANDATORY TIME COVERAGE**: Every day MUST have at least 1 activity in each period: Morning, Afternoon, and Evening
+12. **EVENING ACTIVITY EXAMPLES**: Good: "Trattoria da Valentino", "Pont Neuf Bridge", "Flamenco show at Tablao Cordobés" - Bad: "Evening dining", "Sunset viewing", "Local restaurant"
 
 ## ACTIVITY STRUCTURE REQUIREMENTS:
 - **MANDATORY DISTRIBUTION**: Each day MUST have at least 1 activity in each time period: Morning (6AM-12PM), Afternoon (12PM-6PM), and Evening (6PM-12AM)

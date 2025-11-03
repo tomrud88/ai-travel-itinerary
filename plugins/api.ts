@@ -128,11 +128,13 @@ export function apiPlugin(): Plugin {
                   `🏙️ Server-side city gallery for: "${destination}" (limit: ${limit})`
                 );
 
-                // Simple search terms for general city images (no specific modifiers)
+                // Specific search terms for city images (avoid person names)
                 const searchTerms = [
-                  destination, // Just the city name
                   `${destination} city`,
                   `${destination} skyline`,
+                  `${destination} architecture`,
+                  `${destination} landmarks`,
+                  `${destination} tourist attractions`,
                 ];
 
                 const allImages: string[] = [];
