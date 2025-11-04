@@ -36,10 +36,10 @@ class FreepikRateLimit {
   private static monthlyRequestCount = 0;
   private static lastResetDate = new Date().getDate();
   private static lastResetMonth = new Date().getMonth();
-  private static readonly MAX_REQUESTS_PER_MINUTE = 10; // Comfortable rate for itinerary generation
+  private static readonly MAX_REQUESTS_PER_MINUTE = 20; // Increased rate for faster itinerary generation
   private static readonly MAX_DAILY_REQUESTS = 80; // 80 requests per day (4 complete itineraries @ 20 images each)
   private static readonly MAX_MONTHLY_REQUESTS = 2000; // 2000 requests/month (≈4.00 EUR @ 0.002 EUR/request, 100 itineraries)
-  private static readonly MIN_INTERVAL = 6000; // 6 seconds between requests (10 per minute)
+  private static readonly MIN_INTERVAL = 3000; // 3 seconds between requests (20 per minute)
 
   static async enforceLimit(): Promise<void> {
     const now = Date.now();

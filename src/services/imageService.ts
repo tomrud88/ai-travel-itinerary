@@ -6,7 +6,7 @@ export class ImageService {
   private static imageCache = new Map<string, string>();
   private static requestCount = 0;
   private static lastMinuteStart = Date.now();
-  private static readonly MAX_REQUESTS_PER_MINUTE = 8; // Client-side limit: 8 per minute (below server limit of 10)
+  private static readonly MAX_REQUESTS_PER_MINUTE = 18; // Client-side limit: 18 per minute (below server limit of 20 for safety)
 
   /**
    * Check client-side rate limiting before making requests
