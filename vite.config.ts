@@ -13,20 +13,8 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), tailwindcss(), apiPlugin()],
-    ssr: {
-      // Enable SSR for our image service
-      noExternal: ["@ai-sdk/google", "ai"],
-    },
-    build: {
-      rollupOptions: {
-        input: {
-          app: "./index.html",
-          ssr: "./src/entry-server.tsx",
-        },
-      },
-    },
     define: {
-      // Make sure environment variables are available in SSR
+      // Make sure environment variables are available
       __FREEPIK_API_KEY__: JSON.stringify(env.VITE_FREEPIK_API_KEY || ""),
     },
   };
