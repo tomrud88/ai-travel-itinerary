@@ -4,6 +4,33 @@
 
 export class ImageService {
   private static imageCache = new Map<string, string>();
+  private static requestCount = 0;
+  private static lastMinuteStart = Date.now();
+  private static readonly MAX_REQUESTS_PER_MINUTE = 8; // Client-side limit: 8 per minute (below server limit of 10)
+
+  /**
+   * Check client-side rate limiting before making requests
+   */
+  private static checkRateLimit(): boolean {
+    const now = Date.now();
+
+    // Reset counter every minute
+    if (now - this.lastMinuteStart > 60000) {
+      this.requestCount = 0;
+      this.lastMinuteStart = now;
+    }
+
+    // Check if we've exceeded the limit
+    if (this.requestCount >= this.MAX_REQUESTS_PER_MINUTE) {
+      console.warn(
+        `⚠️ Client-side Freepik rate limit reached (${this.MAX_REQUESTS_PER_MINUTE}/min). Skipping request.`
+      );
+      return false;
+    }
+
+    this.requestCount++;
+    return true;
+  }
 
   static async getFreepikImage(
     activityName: string,
@@ -29,6 +56,14 @@ export class ImageService {
       return this.imageCache.get(cacheKey)!;
     }
 
+    // Check rate limiting before making request
+    if (!this.checkRateLimit()) {
+      console.log(
+        `🚫 Skipping Freepik request due to rate limiting: "${searchQuery}"`
+      );
+      return null;
+    }
+
     try {
       console.log(`🔍 Server-side Freepik search for: "${searchQuery}"`);
 
@@ -45,9 +80,20 @@ export class ImageService {
       });
 
       if (!response.ok) {
-        console.log(
-          `❌ Freepik API error ${response.status} for: "${searchQuery}"`
-        );
+        const errorText = await response.text();
+
+        if (response.status === 429) {
+          console.log(`⏳ Freepik rate limit exceeded for: "${searchQuery}"`);
+        } else if (
+          errorText.includes("rate limit") ||
+          errorText.includes("Rate limit")
+        ) {
+          console.log(`⏳ Freepik rate limit error for: "${searchQuery}"`);
+        } else {
+          console.log(
+            `❌ Freepik API error ${response.status} for: "${searchQuery}"`
+          );
+        }
         return null;
       }
 
@@ -71,6 +117,14 @@ export class ImageService {
   static async getCityGallery(destination: string): Promise<string[]> {
     console.log(`🏙️ Getting Freepik gallery for: "${destination}"`);
 
+    // Check rate limiting before making request
+    if (!this.checkRateLimit()) {
+      console.log(
+        `🚫 Skipping Freepik city gallery request due to rate limiting: "${destination}"`
+      );
+      return [];
+    }
+
     try {
       // Get a larger batch of city images - 15 to cover all activities
       const response = await fetch("/api/images/city-gallery", {
@@ -85,7 +139,18 @@ export class ImageService {
       });
 
       if (!response.ok) {
-        console.log(`❌ Freepik city gallery API error ${response.status}`);
+        const errorText = await response.text();
+
+        if (response.status === 429) {
+          console.log(`⏳ Freepik city gallery rate limit exceeded`);
+        } else if (
+          errorText.includes("rate limit") ||
+          errorText.includes("Rate limit")
+        ) {
+          console.log(`⏳ Freepik city gallery rate limit error`);
+        } else {
+          console.log(`❌ Freepik city gallery API error ${response.status}`);
+        }
         return [];
       }
 

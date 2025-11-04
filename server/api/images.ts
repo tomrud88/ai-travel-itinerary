@@ -28,6 +28,130 @@ const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
 // Request deduplication - prevent multiple simultaneous calls for same query
 const pendingRequests = new Map<string, Promise<string[]>>();
 
+// Rate limiting for Freepik API - Budget: Max 5 EUR/month
+class FreepikRateLimit {
+  private static lastRequestTime = 0;
+  private static requestCount = 0;
+  private static dailyRequestCount = 0;
+  private static monthlyRequestCount = 0;
+  private static lastResetDate = new Date().getDate();
+  private static lastResetMonth = new Date().getMonth();
+  private static readonly MAX_REQUESTS_PER_MINUTE = 10; // Comfortable rate for itinerary generation
+  private static readonly MAX_DAILY_REQUESTS = 80; // 80 requests per day (4 complete itineraries @ 20 images each)
+  private static readonly MAX_MONTHLY_REQUESTS = 2000; // 2000 requests/month (≈4.00 EUR @ 0.002 EUR/request, 100 itineraries)
+  private static readonly MIN_INTERVAL = 6000; // 6 seconds between requests (10 per minute)
+
+  static async enforceLimit(): Promise<void> {
+    const now = Date.now();
+    const currentDate = new Date().getDate();
+    const currentMonth = new Date().getMonth();
+
+    // Reset monthly counter at start of new month
+    if (currentMonth !== FreepikRateLimit.lastResetMonth) {
+      FreepikRateLimit.monthlyRequestCount = 0;
+      FreepikRateLimit.dailyRequestCount = 0;
+      FreepikRateLimit.requestCount = 0;
+      FreepikRateLimit.lastResetMonth = currentMonth;
+      FreepikRateLimit.lastResetDate = currentDate;
+      console.log("🔄 Freepik rate limit counters reset for new month");
+    }
+
+    // Reset daily counter at midnight
+    if (currentDate !== FreepikRateLimit.lastResetDate) {
+      FreepikRateLimit.dailyRequestCount = 0;
+      FreepikRateLimit.requestCount = 0;
+      FreepikRateLimit.lastResetDate = currentDate;
+      console.log("🔄 Freepik daily counters reset");
+    }
+
+    // Check monthly budget limit (MOST IMPORTANT)
+    if (
+      FreepikRateLimit.monthlyRequestCount >=
+      FreepikRateLimit.MAX_MONTHLY_REQUESTS
+    ) {
+      throw new Error(
+        `🚫 Monthly Freepik budget limit reached (${FreepikRateLimit.MAX_MONTHLY_REQUESTS} requests ≈ 5 EUR). Wait until next month or upgrade plan.`
+      );
+    }
+
+    // Check daily limit
+    if (
+      FreepikRateLimit.dailyRequestCount >= FreepikRateLimit.MAX_DAILY_REQUESTS
+    ) {
+      throw new Error(
+        `Freepik daily API limit reached (${FreepikRateLimit.MAX_DAILY_REQUESTS} requests). Please try again tomorrow.`
+      );
+    }
+
+    // Reset minute counter if more than a minute has passed
+    if (now - FreepikRateLimit.lastRequestTime > 60000) {
+      FreepikRateLimit.requestCount = 0;
+    }
+
+    // Check per-minute limit
+    if (
+      FreepikRateLimit.requestCount >= FreepikRateLimit.MAX_REQUESTS_PER_MINUTE
+    ) {
+      throw new Error(
+        `Freepik rate limit exceeded (${FreepikRateLimit.MAX_REQUESTS_PER_MINUTE} requests per minute). Please wait before making more requests.`
+      );
+    }
+
+    // Enforce minimum interval between requests
+    const timeSinceLastRequest = now - FreepikRateLimit.lastRequestTime;
+    if (timeSinceLastRequest < FreepikRateLimit.MIN_INTERVAL) {
+      const waitTime = FreepikRateLimit.MIN_INTERVAL - timeSinceLastRequest;
+      console.log(
+        `⏳ Freepik rate limiting: waiting ${waitTime}ms before API call`
+      );
+      await new Promise((resolve) => setTimeout(resolve, waitTime));
+    }
+
+    FreepikRateLimit.lastRequestTime = Date.now();
+    FreepikRateLimit.requestCount++;
+    FreepikRateLimit.dailyRequestCount++;
+    FreepikRateLimit.monthlyRequestCount++;
+
+    const remainingMonthly =
+      FreepikRateLimit.MAX_MONTHLY_REQUESTS -
+      FreepikRateLimit.monthlyRequestCount;
+    const estimatedCost = FreepikRateLimit.monthlyRequestCount * 0.002; // Real cost: 0.002 EUR per request (103 requests = 0.206 EUR)
+
+    console.log(`💰 Freepik Budget Tracking:`);
+    console.log(
+      `   Monthly: ${FreepikRateLimit.monthlyRequestCount}/${
+        FreepikRateLimit.MAX_MONTHLY_REQUESTS
+      } requests (≈${estimatedCost.toFixed(2)} EUR / 5.00 EUR)`
+    );
+    console.log(
+      `   Daily: ${FreepikRateLimit.dailyRequestCount}/${FreepikRateLimit.MAX_DAILY_REQUESTS} requests`
+    );
+    console.log(
+      `   Per minute: ${FreepikRateLimit.requestCount}/${FreepikRateLimit.MAX_REQUESTS_PER_MINUTE} requests`
+    );
+    console.log(`   Remaining this month: ${remainingMonthly} requests`);
+  }
+
+  /**
+   * Get current budget status for monitoring
+   */
+  static getBudgetStatus() {
+    const estimatedCost = FreepikRateLimit.monthlyRequestCount * 0.002;
+    return {
+      monthlyUsed: FreepikRateLimit.monthlyRequestCount,
+      monthlyLimit: FreepikRateLimit.MAX_MONTHLY_REQUESTS,
+      dailyUsed: FreepikRateLimit.dailyRequestCount,
+      dailyLimit: FreepikRateLimit.MAX_DAILY_REQUESTS,
+      estimatedCost: estimatedCost,
+      remainingBudget: 5.0 - estimatedCost,
+      percentageUsed:
+        (FreepikRateLimit.monthlyRequestCount /
+          FreepikRateLimit.MAX_MONTHLY_REQUESTS) *
+        100,
+    };
+  }
+}
+
 export async function searchFreepikImages(
   query: string,
   limit: number = 3
@@ -76,6 +200,9 @@ async function makeFreepikRequest(
   }
 
   try {
+    // Enforce rate limiting before making API call
+    await FreepikRateLimit.enforceLimit();
+
     console.log(
       `🔍 [NEW REQUEST] Server-side Freepik search for: "${query}" (limit: ${limit})`
     );
@@ -340,4 +467,11 @@ function applyLandmarkOptimizations(query: string, cityName: string): string {
   }
 
   return query;
+}
+
+/**
+ * Export function to get Freepik budget status
+ */
+export function getFreepikBudgetStatus() {
+  return FreepikRateLimit.getBudgetStatus();
 }

@@ -2,6 +2,8 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import AIItineraryGenerator from "./components/AI/AIItineraryGenerator";
 import ProfessionalItinerary from "./components/ProfessionalItinerary";
+import TravelCarousel from "./components/TravelCarousel";
+import { FreepikBudgetTracker } from "./components/FreepikBudgetTracker";
 import type { AIItineraryRequest, AIGeneratedItinerary } from "./types";
 import { AITravelService } from "./services/aiService";
 
@@ -108,6 +110,8 @@ function App() {
   const [isGeneratingItinerary, setIsGeneratingItinerary] = useState(false);
   const [generatedItinerary, setGeneratedItinerary] =
     useState<AIGeneratedItinerary | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [budgetWarning, setBudgetWarning] = useState<string | null>(null);
   const aiService = new AITravelService();
 
   const handleDestinationClick = (destinationId: string) => {
@@ -116,6 +120,8 @@ function App() {
 
   const handleGenerateItinerary = async (request: AIItineraryRequest) => {
     setIsGeneratingItinerary(true);
+    setApiError(null); // Clear previous errors
+
     try {
       console.log("Generating itinerary with request:", request);
 
@@ -131,9 +137,22 @@ function App() {
         setGeneratedItinerary(result.itinerary);
       } else {
         console.error("No result or itinerary from AI service");
+        setApiError("Failed to generate itinerary. Please try again.");
       }
     } catch (error) {
       console.error("Error generating itinerary:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
+
+      if (errorMessage.includes("Daily API limit reached")) {
+        setApiError(
+          "🚫 Daily API limit reached. Please try again tomorrow or upgrade to a paid plan."
+        );
+      } else if (errorMessage.includes("Rate limit")) {
+        setApiError("⏳ Please wait a moment before making another request.");
+      } else {
+        setApiError(`❌ Error: ${errorMessage}`);
+      }
     } finally {
       setIsGeneratingItinerary(false);
     }
@@ -303,6 +322,26 @@ function App() {
               onGenerate={handleGenerateItinerary}
               loading={isGeneratingItinerary}
             />
+
+            {/* Travel Carousel Loader */}
+            <TravelCarousel isVisible={isGeneratingItinerary} />
+
+            {/* API Error Display */}
+            {apiError && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-6 p-4 bg-red-100 border border-red-300 rounded-xl text-red-800 text-center"
+              >
+                <p className="font-medium">{apiError}</p>
+                <button
+                  onClick={() => setApiError(null)}
+                  className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
+                >
+                  Dismiss
+                </button>
+              </motion.div>
+            )}
           </motion.div>
         </section>
 
@@ -489,6 +528,26 @@ function App() {
           Made with ❤️ for travelers by AI Travel Guide
         </p>
       </footer>
+
+      {/* Freepik Budget Tracker */}
+      <FreepikBudgetTracker onBudgetWarning={setBudgetWarning} />
+
+      {/* Budget Warning Display */}
+      {budgetWarning && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:max-w-md z-40 p-4 bg-orange-100 border border-orange-300 rounded-xl text-orange-800 shadow-lg"
+        >
+          <p className="font-medium text-sm">{budgetWarning}</p>
+          <button
+            onClick={() => setBudgetWarning(null)}
+            className="mt-2 text-xs text-orange-600 hover:text-orange-800 underline"
+          >
+            Dismiss
+          </button>
+        </motion.div>
+      )}
     </div>
   );
 }

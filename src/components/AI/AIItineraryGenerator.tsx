@@ -19,7 +19,7 @@ const AIItineraryGenerator: React.FC<AIItineraryGeneratorProps> = ({
 }) => {
   const [formData, setFormData] = useState({
     destination: "",
-    duration: 7,
+    duration: 4,
     budget: 1000,
     travelers: 2,
     startDate: "",

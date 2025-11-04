@@ -3,6 +3,45 @@ import { generateText } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 
 export class AITravelService {
+  private static lastRequestTime = 0;
+  private static dailyRequestCount = 0;
+  private static lastResetDate = new Date().getDate();
+
+  /**
+   * Rate limiting for free tier compliance
+   */
+  private async enforceRateLimit(): Promise<void> {
+    const now = Date.now();
+    const currentDate = new Date().getDate();
+
+    // Reset daily counter at midnight
+    if (currentDate !== AITravelService.lastResetDate) {
+      AITravelService.dailyRequestCount = 0;
+      AITravelService.lastResetDate = currentDate;
+    }
+
+    // Check daily limit (using conservative 150 to leave buffer)
+    if (AITravelService.dailyRequestCount >= 150) {
+      throw new Error("Daily API limit reached. Please try again tomorrow.");
+    }
+
+    // Enforce minimum 4-second delay between requests (15 RPM = 4s intervals)
+    const timeSinceLastRequest = now - AITravelService.lastRequestTime;
+    const minInterval = 4000; // 4 seconds for 15 RPM
+
+    if (timeSinceLastRequest < minInterval) {
+      const waitTime = minInterval - timeSinceLastRequest;
+      console.log(`⏳ Rate limiting: waiting ${waitTime}ms before API call`);
+      await new Promise((resolve) => setTimeout(resolve, waitTime));
+    }
+
+    AITravelService.lastRequestTime = Date.now();
+    AITravelService.dailyRequestCount++;
+
+    console.log(
+      `📊 API Usage: ${AITravelService.dailyRequestCount}/150 daily requests`
+    );
+  }
   /**
    * Helper method to list available models (for debugging)
    */
@@ -78,12 +117,13 @@ export class AITravelService {
       }
     } catch (error) {
       console.error("❌ Error fetching available models:", error);
-      // Fallback to common model names
+      // Fallback to latest model names (prioritized by free tier limits)
       return [
-        "gemini-1.5-flash-8b",
-        "gemini-1.5-flash",
-        "gemini-1.5-pro",
-        "gemini-pro",
+        "gemini-2.0-flash-lite", // 30 RPM - Best for high volume
+        "gemini-2.5-flash-lite", // 15 RPM - Good efficiency
+        "gemini-2.0-flash", // 15 RPM - Latest model
+        "gemini-2.5-flash", // 10 RPM - Reliable fallback
+        "gemini-2.5-pro", // 2 RPM - Highest quality (limited)
       ];
     }
   }
@@ -470,6 +510,9 @@ Generate a realistic, relaxed, and culturally immersive itinerary with concise d
     const prompt = this.generatePrompt(request);
 
     try {
+      // Enforce rate limiting before making API call
+      await this.enforceRateLimit();
+
       console.log("🤖 Calling Google Gemini with prompt...");
 
       // Check if API key is available

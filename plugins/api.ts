@@ -186,6 +186,35 @@ export function apiPlugin(): Plugin {
           }
         }
       );
+
+      // Budget status endpoint
+      server.middlewares.use(
+        "/api/images/budget-status",
+        async (req, res, next) => {
+          if (req.method !== "GET") {
+            return next();
+          }
+
+          try {
+            // Import the budget status from images.ts
+            const { getFreepikBudgetStatus } = await import(
+              "../server/api/images"
+            );
+            const budgetStatus = getFreepikBudgetStatus();
+
+            res.setHeader("Content-Type", "application/json");
+            res.setHeader("Access-Control-Allow-Origin", "*");
+            res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+            res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+            res.end(JSON.stringify(budgetStatus));
+          } catch (error) {
+            console.error("Budget Status API Error:", error);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: "Internal server error" }));
+          }
+        }
+      );
     },
   };
 }
