@@ -2,11 +2,19 @@
  * Freepik-Only Image Service - No fallback images, real API only
  */
 
+interface ImageUrls {
+  url: string;
+}
+
 export class ImageService {
-  private static imageCache = new Map<string, string>();
+  private static imageCache = new Map<string, ImageUrls>();
   private static requestCount = 0;
   private static lastMinuteStart = Date.now();
-  private static readonly MAX_REQUESTS_PER_MINUTE = 18; // Client-side limit: 18 per minute (below server limit of 20 for safety)
+  // Tiny blurred placeholder (1x1 pixel, base64 encoded)
+  static readonly PLACEHOLDER_IMAGE =
+    "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDABQODxIPDRQSEBIXFRQdHx4eHRseHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/2wBDAR4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCAAIAAgDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAb/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=";
+  private static readonly MAX_REQUESTS_PER_MINUTE = 35; // Client-side limit: 35 per minute (below server limit of 40 for safety)
+  private static pendingRequests = new Map<string, Promise<ImageUrls | null>>();
 
   /**
    * Check client-side rate limiting before making requests
@@ -36,24 +44,52 @@ export class ImageService {
     activityName: string,
     activityAddress: string = "",
     destinationCity?: string
-  ): Promise<string | null> {
-    const searchQuery = this.optimizeSearchQuery(
-      activityName,
-      activityAddress,
-      undefined,
-      undefined,
-      destinationCity
-    );
+  ): Promise<ImageUrls | null> {
+    if (!destinationCity) {
+      console.log("⚠️ Warning: No destination city provided for image search");
+      return null;
+    }
+
+    // Clean the destination city
+    destinationCity = destinationCity.trim();
+
+    // Get only the location name before "A Day" or similar phrases
+    const parts = activityName.split(/\s+(?:A Day|in the|at the|of the|and)/i);
+    let cleanName = parts[0].trim();
+
+    // Remove any parenthetical text and extra descriptive words
+    cleanName = cleanName
+      .replace(/\s*\([^)]*\)/g, "")
+      .replace(
+        /\b(Cultural|Culinary|Immersion|Delights|Amazing|Beautiful|Local)\b/gi,
+        ""
+      )
+      .trim();
+
+    // Always ensure the city name is present in the query
+    const finalQuery = `${cleanName} ${destinationCity}`;
+
+    // Always ensure the city name is present in the query
+    const searchQuery = `${cleanName} ${destinationCity}`.trim();
     const cacheKey = searchQuery.toLowerCase();
 
     console.log(`🔍 Query optimization:`, {
-      original: `${activityName} ${activityAddress}`.trim(),
+      original: activityName,
+      clean: cleanName,
+      city: destinationCity,
       optimized: searchQuery,
     });
 
     if (this.imageCache.has(cacheKey)) {
       console.log(`🎯 Using cached Freepik image for: "${searchQuery}"`);
       return this.imageCache.get(cacheKey)!;
+    }
+
+    // Check if there's already a pending request for this query
+    const pendingRequest = this.pendingRequests.get(cacheKey);
+    if (pendingRequest) {
+      console.log(`⏳ Waiting for pending request for: "${searchQuery}"`);
+      return pendingRequest;
     }
 
     // Check rate limiting before making request
@@ -64,77 +100,139 @@ export class ImageService {
       return null;
     }
 
+    // Create new request promise and store it
+    const requestPromise = this.makeFreepikRequest(searchQuery);
+    this.pendingRequests.set(cacheKey, requestPromise);
+
     try {
-      console.log(`🔍 Server-side Freepik search for: "${searchQuery}"`);
+      const result = await this.makeFreepikRequest(searchQuery);
 
-      const response = await fetch("/api/images/search", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          activityName: activityName,
-          activityAddress: activityAddress,
-          limit: 1,
-        }),
-      });
+      // Clean up pending request
+      this.pendingRequests.delete(cacheKey);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-
-        if (response.status === 429) {
-          console.log(`⏳ Freepik rate limit exceeded for: "${searchQuery}"`);
-        } else if (
-          errorText.includes("rate limit") ||
-          errorText.includes("Rate limit")
-        ) {
-          console.log(`⏳ Freepik rate limit error for: "${searchQuery}"`);
-        } else {
-          console.log(
-            `❌ Freepik API error ${response.status} for: "${searchQuery}"`
-          );
-        }
-        return null;
-      }
-
-      const data = await response.json();
-
-      if (data.images && data.images.length > 0) {
-        const imageUrl = data.images[0];
-        console.log(`✅ Found real Freepik image for: "${searchQuery}"`);
-        this.imageCache.set(cacheKey, imageUrl);
-        return imageUrl;
-      }
-
-      console.log(`📷 No Freepik results for: "${searchQuery}"`);
-      return null;
+      return result;
     } catch (error) {
+      // Clean up pending request on error
+      this.pendingRequests.delete(cacheKey);
       console.error(`💥 Freepik API error for "${searchQuery}":`, error);
       return null;
     }
   }
 
+  private static async makeFreepikRequest(
+    query: string
+  ): Promise<ImageUrls | null> {
+    console.log(`🔍 Server-side Freepik search for: "${query}"`);
+
+    const response = await fetch("/api/images/search", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        activityName: query,
+        activityAddress: "",
+        limit: 1,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+
+      if (response.status === 429) {
+        console.log(`⏳ Freepik rate limit exceeded for: "${query}"`);
+      } else if (
+        errorText.includes("rate limit") ||
+        errorText.includes("Rate limit")
+      ) {
+        console.log(`⏳ Freepik rate limit error for: "${query}"`);
+      } else {
+        console.log(`❌ Freepik API error ${response.status} for: "${query}"`);
+      }
+      return null;
+    }
+
+    const data = await response.json();
+
+    if (data.images && data.images.length > 0) {
+      console.log(
+        `✅ Found real Freepik image for: "${query}"`,
+        data.images[0]
+      );
+      const imageUrl = data.images[0];
+      const urls: ImageUrls = { url: imageUrl.url };
+      this.imageCache.set(query.toLowerCase(), urls);
+      return urls;
+    }
+
+    console.log(`📷 No Freepik results for: "${query}"`);
+    return null;
+  }
+
+  private static galleryCache = new Map<
+    string,
+    { urls: string[]; timestamp: number }
+  >();
+  private static readonly GALLERY_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
   static async getCityGallery(destination: string): Promise<string[]> {
+    if (
+      !destination ||
+      destination === "destination" ||
+      destination === "European"
+    ) {
+      console.log("⚠️ Invalid city name provided");
+      return [];
+    }
+
     console.log(`🏙️ Getting Freepik gallery for: "${destination}"`);
+
+    // Check gallery cache first
+    const cacheKey = destination.toLowerCase();
+    const cached = this.galleryCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < this.GALLERY_CACHE_DURATION) {
+      console.log(`🎯 Using cached gallery for: "${destination}"`);
+      return cached.urls;
+    }
+
+    // Clean up the city name by removing descriptive words and ensuring it's properly formatted
+    const cityName = destination
+      .replace(
+        /\b(?:relaxed|cultural|historic|beautiful|amazing|city|guide|tour|experience)\b/gi,
+        ""
+      )
+      .replace(/\s+(?:city|town|village)\b/gi, "")
+      .replace(/^\s+|\s+$/g, "") // trim spaces
+      .replace(/\s+/g, " "); // normalize internal spaces
+
+    // Ensure we have a valid city name and form a specific query
+    if (!cityName) {
+      console.log("⚠️ No valid city name found after cleaning");
+      return [];
+    }
+
+    const finalQuery = `${cityName} famous landmarks architecture`;
+
+    console.log(`🔍 Optimized gallery search term: "${finalQuery}"`);
 
     // Check rate limiting before making request
     if (!this.checkRateLimit()) {
       console.log(
-        `🚫 Skipping Freepik city gallery request due to rate limiting: "${destination}"`
+        `🚫 Skipping Freepik city gallery request due to rate limiting: "${finalQuery}"`
       );
       return [];
     }
 
     try {
       // Get a larger batch of city images - 15 to cover all activities
-      const response = await fetch("/api/images/city-gallery", {
+      const response = await fetch("/api/images/search", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          destination,
-          limit: 15, // Get more images to distribute across activities
+          activityName: finalQuery, // Use the enhanced query
+          limit: 3, // Request only 3 images for the gallery
         }),
       });
 
@@ -160,7 +258,15 @@ export class ImageService {
         console.log(
           `✅ Found ${data.images.length} Freepik city images for distribution`
         );
-        return data.images;
+        const urls = data.images.map((img: ImageUrls) => img.url);
+
+        // Store in cache
+        this.galleryCache.set(cacheKey, {
+          urls,
+          timestamp: Date.now(),
+        });
+
+        return urls;
       }
 
       console.log(`📷 No Freepik city gallery results for: "${destination}"`);
@@ -177,11 +283,12 @@ export class ImageService {
     destinationCity?: string
   ): Promise<string | null> {
     // Use the getFreepikImage method for individual activity searches
-    return await this.getFreepikImage(
+    const result = await this.getFreepikImage(
       activityName,
       activityAddress,
       destinationCity
     );
+    return result ? result.url : null;
   }
 
   static distributeCityImages(

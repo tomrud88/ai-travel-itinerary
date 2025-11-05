@@ -2,8 +2,27 @@ import { motion } from "framer-motion";
 import { useState, useEffect, useMemo } from "react";
 import { ImageService } from "../services/imageService";
 
+interface LocalInsights {
+  culturalEtiquette?: string[];
+  transportation?: {
+    localTransport?: string;
+    walkingFriendliness?: string;
+    taxiServices?: string;
+  };
+  weatherConsiderations?: string;
+  bestTimeToVisit?: string;
+}
+
+interface Itinerary {
+  title: string;
+  totalEstimatedCost?: number;
+  description?: string;
+  dailyPlans: Day[];
+  localInsights?: LocalInsights;
+}
+
 interface ProfessionalItineraryProps {
-  itinerary: any;
+  itinerary: Itinerary;
   onGenerateNew: () => void;
 }
 
@@ -122,56 +141,107 @@ export default function ProfessionalItinerary({
   const extractDestination = (title: string): string => {
     if (!title) return "destination";
 
-    // Common city names to look for
-    const cities = [
-      "Barcelona",
-      "Valencia",
-      "Dublin",
-      "Porto",
-      "Madrid",
-      "Paris",
-      "Rome",
-      "London",
-      "Amsterdam",
-      "Sofia",
-      "Varna",
-      "Wrocław",
-      "Warsaw",
-      "Krakow",
-      "Prague",
-      "Vienna",
-      "Berlin",
-      "Munich",
-    ];
+    // Common city names to look for - expanded list with variants
+    const cities = {
+      Barcelona: ["Barcelona", "BCN"],
+      Valencia: ["Valencia", "VLC"],
+      Zaragoza: ["Zaragoza", "Saragossa", "ZAZ"],
+      Dublin: ["Dublin", "DUB"],
+      Porto: ["Porto", "Oporto"],
+      Madrid: ["Madrid", "MAD"],
+      Paris: ["Paris", "Parisian"],
+      Rome: ["Rome", "Roma"],
+      London: ["London", "Greater London"],
+      Amsterdam: ["Amsterdam", "AMS"],
+      Sofia: ["Sofia", "SOF"],
+      Varna: ["Varna"],
+      Wrocław: ["Wrocław", "Wroclaw", "WRO"],
+      Warsaw: ["Warsaw", "Warszawa", "WAW"],
+      Krakow: ["Krakow", "Kraków", "KRK"],
+      Prague: ["Prague", "Praha", "PRG"],
+      Vienna: ["Vienna", "Wien", "VIE"],
+      Berlin: ["Berlin", "BER"],
+      Munich: ["Munich", "München", "MUC"],
+      Budapest: ["Budapest", "BUD"],
+      Brussels: ["Brussels", "BRU"],
+      Milan: ["Milan", "Milano", "MXP"],
+      Florence: ["Florence", "Firenze", "FLR"],
+      Venice: ["Venice", "Venezia", "VCE"],
+      Lisbon: ["Lisbon", "Lisboa", "LIS"],
+      Seville: ["Seville", "Sevilla", "SVQ"],
+      Granada: ["Granada", "GRX"],
+      Copenhagen: ["Copenhagen", "København", "CPH"],
+      Stockholm: ["Stockholm", "ARN"],
+      Oslo: ["Oslo", "OSL"],
+      Athens: ["Athens", "ATH"],
+      Istanbul: ["Istanbul", "IST"],
+    };
 
-    // Check if any city name is mentioned in the title
-    for (const city of cities) {
-      if (title.toLowerCase().includes(city.toLowerCase())) {
-        return city;
+    const normalizedTitle = title.trim();
+
+    // First try to extract city from "in [City]" pattern
+    const inCityMatch = normalizedTitle.match(
+      /\bin\s+([A-Z][a-zA-Z\u00C0-\u017F]+(?:\s+[A-Z][a-zA-Z\u00C0-\u017F]+)*)/
+    );
+    if (inCityMatch && inCityMatch[1]) {
+      const extractedCity = inCityMatch[1].trim();
+      console.log(`Found city "${extractedCity}" using "in City" pattern`);
+      return extractedCity;
+    }
+
+    // Then try to find exact city names or their variants
+    for (const [cityName, variants] of Object.entries(cities)) {
+      if (
+        variants.some((variant) =>
+          normalizedTitle.toLowerCase().includes(variant.toLowerCase())
+        )
+      ) {
+        console.log(`Found city "${cityName}" in known city list`);
+        return cityName;
       }
     }
 
-    // Improved fallback extraction
-    let extracted = title.trim();
+    // If no exact match, try more aggressive extraction
+    let extracted = normalizedTitle;
 
     // Remove common title patterns
-    extracted = extracted.replace(/^(\d+)[-\s]?day\s+/i, ""); // Remove "2-Day" or "3 Day"
-    extracted = extracted.split(/[:\-–—]/)[0].trim(); // Split on colon, dash, or em-dash
+    extracted = extracted.replace(/^(\d+)[-\s]?days?\s+(?:in\s+)?/i, ""); // "3 Days in" or "2-Day"
+    extracted = extracted.split(/[:\-–—]/)[0].trim(); // Split on punctuation
 
-    // Remove possessive forms and descriptive parts
-    extracted = extracted.replace(/'s\s+.*$/i, ""); // "Wrocław's Enchanting..." -> "Wrocław"
-    extracted = extracted.replace(
-      /\s+(trip|adventure|journey|experience|guide).*$/i,
-      ""
-    ); // Remove trip/adventure etc
+    // Remove descriptive phrases
+    const removePatterns = [
+      /^(?:discover|explore|experience|visit)\s+/i,
+      /\s+(?:trip|tour|adventure|journey|experience|guide|itinerary).*$/i,
+      /'s\s+.*$/i, // Possessive forms
+      /\s+(?:city\s+break|weekend|getaway).*$/i,
+      /^(?:the\s+|a\s+|an\s+)/i,
+    ];
 
-    // Take only the first word/city name if it looks like a place name
-    const words = extracted.split(/\s+/);
-    if (words.length > 0 && words[0].length > 2) {
-      return words[0];
+    removePatterns.forEach((pattern) => {
+      extracted = extracted.replace(pattern, "");
+    });
+
+    // Check if the cleaned up text matches any city variants
+    for (const [cityName, variants] of Object.entries(cities)) {
+      if (
+        variants.some((variant) =>
+          extracted.toLowerCase().includes(variant.toLowerCase())
+        )
+      ) {
+        return cityName;
+      }
     }
 
-    return extracted || "destination";
+    // If we still have text, use the first significant word
+    const words = extracted.split(/\s+/);
+    const significantWord = words.find(
+      (word) => word.length > 2 && /^[A-Z]/.test(word)
+    );
+    if (significantWord) {
+      return significantWord;
+    }
+
+    return "destination";
   };
 
   const destination = extractDestination(itinerary.title);
@@ -186,6 +256,15 @@ export default function ProfessionalItinerary({
       // Get city gallery first
       setGalleryLoading(true);
       try {
+        // Make sure we have a valid city name before requesting images
+        if (
+          !destination ||
+          destination === "destination" ||
+          destination === "European"
+        ) {
+          console.log("No valid city name found, skipping gallery load");
+          return;
+        }
         console.log(`Loading gallery for: ${destination}`);
         const cityImages = await ImageService.getCityGallery(destination);
         setGalleryImages(cityImages.slice(0, 3)); // Keep top 3 for gallery display
@@ -198,53 +277,92 @@ export default function ProfessionalItinerary({
           setGalleryLoading(false); // Allow city gallery to show immediately
 
           console.log(
-            `🚀 Starting parallel image fetch for ${allActivities.length} activities`
+            `🚀 Setting up lazy loading for ${allActivities.length} activities`
           );
 
-          // Create parallel promises for all activity images
-          const imagePromises = allActivities.map(
-            async (activity: Activity) => {
-              if (activity?.name) {
-                try {
-                  const activityImage = await ImageService.getActivityImage(
-                    activity.name,
-                    activity.address || "",
-                    destination
-                  );
-                  return { name: activity.name, image: activityImage };
-                } catch (error) {
-                  console.error(
-                    `Error fetching image for ${activity.name}:`,
-                    error
-                  );
-                  return { name: activity.name, image: null };
+          // Track which activities are being loaded
+          const loadingActivities = new Set<string>();
+
+          // Create a single observer for all activities
+          const observer = new IntersectionObserver(
+            (entries) => {
+              entries.forEach((entry) => {
+                const activityName = entry.target.getAttribute("data-activity");
+                if (!activityName) return;
+
+                // Skip if already loaded or currently loading
+                if (
+                  activityImages[activityName] ||
+                  loadingActivities.has(activityName)
+                ) {
+                  observer.unobserve(entry.target);
+                  return;
                 }
-              }
-              return { name: null, image: null };
+
+                if (entry.isIntersecting) {
+                  // Mark as loading to prevent duplicate requests
+                  loadingActivities.add(activityName);
+
+                  // Clean activity name before sending to image service
+                  const cleanActivityName = activityName
+                    .split(/\s+A Day/i)[0]
+                    .trim();
+
+                  // Load image
+                  ImageService.getActivityImage(
+                    cleanActivityName,
+                    "", // address will be added when needed
+                    destination
+                  )
+                    .then((result) => {
+                      if (result) {
+                        setActivityImages((prev) => ({
+                          ...prev,
+                          [activityName]: result,
+                        }));
+                        console.log(
+                          `Loaded image for ${activityName}:`,
+                          result
+                        );
+                      }
+                      // Remove from loading set once complete
+                      loadingActivities.delete(activityName);
+                      observer.unobserve(entry.target);
+                    })
+                    .catch((error) => {
+                      console.error(
+                        `Error loading image for ${activityName}:`,
+                        error
+                      );
+                      loadingActivities.delete(activityName);
+                      observer.unobserve(entry.target);
+                    });
+                }
+              });
+            },
+            {
+              rootMargin: "100px 0px", // Increased margin for earlier loading
+              threshold: 0.1,
             }
           );
 
-          // Execute all image fetches in parallel
-          Promise.all(imagePromises)
-            .then((results) => {
-              const newActivityImages: Record<string, string> = {};
-              let successCount = 0;
-
-              results.forEach((result) => {
-                if (result.name && result.image) {
-                  newActivityImages[result.name] = result.image;
-                  successCount++;
-                }
-              });
-
-              setActivityImages(newActivityImages);
-              console.log(
-                `📸 Parallel fetch complete: ${successCount}/${allActivities.length} activity images loaded`
+          // Set up observers for each activity
+          allActivities.forEach((activity) => {
+            if (activity.name) {
+              const element = document.querySelector(
+                `[data-activity="${activity.name}"]`
               );
-            })
-            .catch((error) => {
-              console.error("Error in parallel image fetching:", error);
-            });
+              if (element && !activityImages[activity.name]) {
+                observer.observe(element);
+              }
+            }
+          });
+
+          // Cleanup function
+          return () => {
+            observer.disconnect();
+            loadingActivities.clear();
+          };
         } else {
           setGalleryLoading(false);
         }
@@ -259,7 +377,7 @@ export default function ProfessionalItinerary({
     if (destination && days.length > 0) {
       loadActivityImages();
     }
-  }, [destination, days]);
+  }, [destination, days]); // Removed activityImages from deps to prevent recreation
 
   return (
     <section className="mb-24 relative">
@@ -444,17 +562,45 @@ export default function ProfessionalItinerary({
                                       )}
                                     </div>
 
-                                    {/* Image on top for mobile, side for desktop */}
-                                    {activityImages[activity.name] && (
-                                      <div className="flex-shrink-0 self-center md:self-start">
-                                        <img
-                                          src={activityImages[activity.name]}
-                                          alt={activity.name || "Activity"}
-                                          className="w-full max-w-sm md:w-48 md:h-36 h-48 object-cover rounded-lg shadow-md mx-auto md:mx-0"
-                                          loading="lazy"
+                                    {/* Activity image with placeholder */}
+                                    <div
+                                      className="flex-shrink-0 self-center md:self-start relative"
+                                      data-activity={activity.name
+                                        .split(/\s+A Day/i)[0]
+                                        .trim()}
+                                    >
+                                      <div className="w-full max-w-sm md:w-48 md:h-36 h-48 relative">
+                                        {/* Placeholder background */}
+                                        <div
+                                          className="absolute inset-0 w-full h-full rounded-lg"
+                                          style={{
+                                            backgroundColor: "#f3f4f6",
+                                            backgroundImage: `url(${ImageService.PLACEHOLDER_IMAGE})`,
+                                            backgroundSize: "cover",
+                                            filter: "blur(8px)",
+                                            transform: "scale(1.05)",
+                                          }}
                                         />
+                                        {/* Lazy loaded image with loading states */}
+                                        {activityImages[activity.name] ? (
+                                          <img
+                                            src={activityImages[activity.name]}
+                                            alt={activity.name || "Activity"}
+                                            className="absolute inset-0 w-full h-full object-cover rounded-lg shadow-md mx-auto md:mx-0 transition-opacity duration-500 opacity-100"
+                                            loading="lazy"
+                                            onLoad={(e) => {
+                                              // Add opacity transition
+                                              e.currentTarget.style.opacity =
+                                                "1";
+                                            }}
+                                            style={{ opacity: 0 }} // Start transparent
+                                          />
+                                        ) : (
+                                          // Show pulsing loading state
+                                          <div className="absolute inset-0 w-full h-full bg-gray-200 rounded-lg animate-pulse"></div>
+                                        )}
                                       </div>
-                                    )}
+                                    </div>
 
                                     {/* Text content */}
                                     <div className="flex-grow">
@@ -497,6 +643,17 @@ export default function ProfessionalItinerary({
                 </div>
               </motion.div>
             ))}
+          </div>
+
+          {/* Generate New Button */}
+          <div className="flex justify-center mt-8">
+            <button
+              onClick={onGenerateNew}
+              className="bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300 flex items-center gap-2"
+            >
+              <span>Generate New Itinerary</span>
+              <span className="text-xl">✨</span>
+            </button>
           </div>
         </div>
       </motion.div>

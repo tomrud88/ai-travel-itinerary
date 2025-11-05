@@ -43,89 +43,26 @@ export class AITravelService {
     );
   }
   /**
-   * Helper method to list available models (for debugging)
+   * Helper method to list available models (for debugging) - Server-side only
    */
   async listAvailableModels(): Promise<void> {
-    try {
-      const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY;
-      if (!apiKey) {
-        console.error("❌ No API key available");
-        return;
-      }
-
-      // Try to list models using the Google AI API directly
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
-      );
-      const data = await response.json();
-
-      if (data.models) {
-        console.log("📋 Available models:");
-        data.models.forEach((model: { name: string; displayName: string }) => {
-          console.log(`  - ${model.name} (${model.displayName})`);
-        });
-      } else {
-        console.log("❌ Could not fetch models:", data);
-      }
-    } catch (error) {
-      console.error("❌ Error listing models:", error);
-    }
+    // This should be moved to server-side to avoid exposing API keys
+    console.log("📋 Model listing disabled in client-side for security");
   }
 
   /**
-   * Get available model names that support generateContent
+   * Get available model names - using hardcoded list for security
    */
-  async getAvailableModels(apiKey: string): Promise<string[]> {
-    try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
-      );
-      const data = await response.json();
-
-      if (data.models) {
-        // Filter models that support generateContent and prioritize faster/cheaper models
-        const allModels = data.models
-          .filter((model: { supportedGenerationMethods: string[] }) =>
-            model.supportedGenerationMethods?.includes("generateContent")
-          )
-          .map((model: { name: string }) => model.name);
-
-        // Prioritize models by speed and efficiency (Flash models first, then Pro models)
-        const prioritizedModels = allModels.sort((a: string, b: string) => {
-          // Flash models are faster and use fewer tokens
-          const aIsFlash = a.includes("flash");
-          const bIsFlash = b.includes("flash");
-          const aIsLite = a.includes("lite");
-          const bIsLite = b.includes("lite");
-
-          // Priority order: flash-lite > flash > others
-          if (aIsLite && !bIsLite) return -1;
-          if (!aIsLite && bIsLite) return 1;
-          if (aIsFlash && !bIsFlash) return -1;
-          if (!aIsFlash && bIsFlash) return 1;
-          return 0;
-        });
-
-        console.log(
-          "✅ Models prioritized by efficiency:",
-          prioritizedModels.slice(0, 5)
-        );
-        return prioritizedModels;
-      } else {
-        console.error("❌ Could not fetch models:", data);
-        return [];
-      }
-    } catch (error) {
-      console.error("❌ Error fetching available models:", error);
-      // Fallback to latest model names (prioritized by free tier limits)
-      return [
-        "gemini-2.0-flash-lite", // 30 RPM - Best for high volume
-        "gemini-2.5-flash-lite", // 15 RPM - Good efficiency
-        "gemini-2.0-flash", // 15 RPM - Latest model
-        "gemini-2.5-flash", // 10 RPM - Reliable fallback
-        "gemini-2.5-pro", // 2 RPM - Highest quality (limited)
-      ];
-    }
+  async getAvailableModels(): Promise<string[]> {
+    // Use predefined model list to avoid exposing API keys in network requests
+    console.log("✅ Using predefined model list for security");
+    return [
+      "gemini-2.0-flash-lite", // 30 RPM - Best for high volume
+      "gemini-2.5-flash-lite", // 15 RPM - Good efficiency
+      "gemini-2.0-flash", // 15 RPM - Latest model
+      "gemini-2.5-flash", // 10 RPM - Reliable fallback
+      "gemini-2.5-pro", // 2 RPM - Highest quality (limited)
+    ];
   }
 
   /**
@@ -526,7 +463,7 @@ Generate a realistic, relaxed, and culturally immersive itinerary with concise d
 
       // First, let's see what models are actually available
       console.log("🔍 Checking available models...");
-      const availableModels = await this.getAvailableModels(apiKey);
+      const availableModels = await this.getAvailableModels();
       console.log("📋 Available models:", availableModels);
 
       if (availableModels.length === 0) {

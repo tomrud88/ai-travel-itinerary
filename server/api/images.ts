@@ -7,6 +7,7 @@ interface FreepikResponse {
   data: Array<{
     id: string;
     url: string;
+    description?: string;
     thumbnails?: {
       webp?: string;
       jpg?: string;
@@ -22,11 +23,15 @@ interface FreepikResponse {
 }
 
 // Simple in-memory cache to reduce API calls
-const imageCache = new Map<string, { data: string[]; timestamp: number }>();
-const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+interface ImageUrls {
+  url: string;
+}
+
+const imageCache = new Map<string, { data: ImageUrls[]; timestamp: number }>();
+const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
 // Request deduplication - prevent multiple simultaneous calls for same query
-const pendingRequests = new Map<string, Promise<string[]>>();
+const pendingRequests = new Map<string, Promise<ImageUrls[]>>();
 
 // Rate limiting for Freepik API - Budget: Max 5 EUR/month
 class FreepikRateLimit {
@@ -36,10 +41,10 @@ class FreepikRateLimit {
   private static monthlyRequestCount = 0;
   private static lastResetDate = new Date().getDate();
   private static lastResetMonth = new Date().getMonth();
-  private static readonly MAX_REQUESTS_PER_MINUTE = 20; // Increased rate for faster itinerary generation
-  private static readonly MAX_DAILY_REQUESTS = 80; // 80 requests per day (4 complete itineraries @ 20 images each)
-  private static readonly MAX_MONTHLY_REQUESTS = 2000; // 2000 requests/month (≈4.00 EUR @ 0.002 EUR/request, 100 itineraries)
-  private static readonly MIN_INTERVAL = 3000; // 3 seconds between requests (20 per minute)
+  private static readonly MAX_REQUESTS_PER_MINUTE = 30; // Free tier: 30 requests per minute
+  private static readonly MAX_DAILY_REQUESTS = 300; // Free tier: 300 requests per day
+  private static readonly MAX_MONTHLY_REQUESTS = 3000; // Free tier: 3000 requests/month
+  private static readonly MIN_INTERVAL = 500; // 0.5 second between requests - allows for burst capacity
 
   static async enforceLimit(): Promise<void> {
     const now = Date.now();
@@ -64,13 +69,13 @@ class FreepikRateLimit {
       console.log("🔄 Freepik daily counters reset");
     }
 
-    // Check monthly budget limit (MOST IMPORTANT)
+    // Check monthly free tier limit
     if (
       FreepikRateLimit.monthlyRequestCount >=
       FreepikRateLimit.MAX_MONTHLY_REQUESTS
     ) {
       throw new Error(
-        `🚫 Monthly Freepik budget limit reached (${FreepikRateLimit.MAX_MONTHLY_REQUESTS} requests ≈ 5 EUR). Wait until next month or upgrade plan.`
+        `🚫 Monthly Freepik free tier limit reached (${FreepikRateLimit.MAX_MONTHLY_REQUESTS} requests). Please wait until next month.`
       );
     }
 
@@ -115,13 +120,10 @@ class FreepikRateLimit {
     const remainingMonthly =
       FreepikRateLimit.MAX_MONTHLY_REQUESTS -
       FreepikRateLimit.monthlyRequestCount;
-    const estimatedCost = FreepikRateLimit.monthlyRequestCount * 0.002; // Real cost: 0.002 EUR per request (103 requests = 0.206 EUR)
 
-    console.log(`💰 Freepik Budget Tracking:`);
+    console.log(`� Freepik Usage Tracking:`);
     console.log(
-      `   Monthly: ${FreepikRateLimit.monthlyRequestCount}/${
-        FreepikRateLimit.MAX_MONTHLY_REQUESTS
-      } requests (≈${estimatedCost.toFixed(2)} EUR / 5.00 EUR)`
+      `   Monthly: ${FreepikRateLimit.monthlyRequestCount}/${FreepikRateLimit.MAX_MONTHLY_REQUESTS} requests (Free Tier)`
     );
     console.log(
       `   Daily: ${FreepikRateLimit.dailyRequestCount}/${FreepikRateLimit.MAX_DAILY_REQUESTS} requests`
@@ -136,18 +138,16 @@ class FreepikRateLimit {
    * Get current budget status for monitoring
    */
   static getBudgetStatus() {
-    const estimatedCost = FreepikRateLimit.monthlyRequestCount * 0.002;
     return {
       monthlyUsed: FreepikRateLimit.monthlyRequestCount,
       monthlyLimit: FreepikRateLimit.MAX_MONTHLY_REQUESTS,
       dailyUsed: FreepikRateLimit.dailyRequestCount,
       dailyLimit: FreepikRateLimit.MAX_DAILY_REQUESTS,
-      estimatedCost: estimatedCost,
-      remainingBudget: 5.0 - estimatedCost,
       percentageUsed:
         (FreepikRateLimit.monthlyRequestCount /
           FreepikRateLimit.MAX_MONTHLY_REQUESTS) *
         100,
+      tier: "free",
     };
   }
 }
@@ -155,7 +155,11 @@ class FreepikRateLimit {
 export async function searchFreepikImages(
   query: string,
   limit: number = 3
-): Promise<string[]> {
+): Promise<ImageUrls[]> {
+  // Handle special cases for city names
+  if (query.toLowerCase() === 'nice' || query.toLowerCase() === 'nice city') {
+    query = 'Nice France tourist attractions';
+  }
   const cacheKey = `${query}-${limit}`;
 
   // Check cache first
@@ -191,7 +195,13 @@ async function makeFreepikRequest(
   query: string,
   limit: number,
   cacheKey: string
-): Promise<string[]> {
+): Promise<ImageUrls[]> {
+  // Clean up query by removing descriptive and unnecessary words first
+  query = query
+    .replace(/\b(?:relaxed|cultural|historic|beautiful|amazing|wonderful|exciting|authentic|traditional|best|top|local)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
   const FREEPIK_API_KEY = process.env.VITE_FREEPIK_API_KEY;
 
   if (!FREEPIK_API_KEY) {
@@ -200,17 +210,93 @@ async function makeFreepikRequest(
   }
 
   try {
-    // Enforce rate limiting before making API call
-    await FreepikRateLimit.enforceLimit();
+    // Use Promise.race to enforce rate limiting with a timeout
+    await Promise.race([
+      FreepikRateLimit.enforceLimit(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Rate limit timeout")), 5000)
+      ),
+    ]);
 
     console.log(
       `🔍 [NEW REQUEST] Server-side Freepik search for: "${query}" (limit: ${limit})`
     );
     console.log(`🔑 Using API key: ${FREEPIK_API_KEY.substring(0, 10)}...`);
 
+    // Extract location name and optimize query
+    function optimizeLocationQuery(searchQuery: string): string {
+      const query = searchQuery.trim();
+
+      // First, check if it's just a simple city name
+      if (/^[A-Z][a-z]+$/.test(query)) {
+        return `${query} city landmarks tourist attractions`;
+      }
+
+      // Extract location name from common patterns
+      const patterns = [
+        /^(\d+)\s+days?\s+in\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,  // "N days in Location"
+        /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:adventure|tour|trip|journey)/i,  // "Location Adventure/Tour/Trip"
+        /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i  // "Location" by itself
+      ];
+
+      for (const pattern of patterns) {
+        const match = query.match(pattern);
+        if (match) {
+          // For the "N days in Location" pattern, the city is in the second capture group
+          const location = (pattern.toString().includes('days') ? match[2] : match[1]).trim();
+          
+          // Special handling for cities that could be misinterpreted
+          if (location.toLowerCase() === 'nice') {
+            return 'Nice France landmarks attractions';
+          }
+          
+          // If we found a location and it looks like a proper city name
+          if (location && location.length > 2 && /^[A-Z]/.test(location)) {
+          // Add relevant search terms based on the query context
+          const context = query.toLowerCase();
+          if (context.includes("landmark") || context.includes("monument")) {
+            return `${location} landmarks monuments architecture`;
+          } else if (
+            context.includes("restaurant") ||
+            context.includes("food")
+          ) {
+            return `${location} restaurants cuisine`;
+          } else if (
+            context.includes("museum") ||
+            context.includes("gallery")
+          ) {
+            return `${location} museums galleries`;
+          } else if (context.includes("park") || context.includes("garden")) {
+            return `${location} parks gardens nature`;
+          } else {
+            // Special handling for cities that could be misinterpreted
+            if (location.toLowerCase() === "nice") {
+              return "Nice France city";
+            }
+            return `${location} iconic landmark monument famous`;
+          }
+        }
+      }
+
+      // If no location found or location doesn't look like a city name, use original query
+      return query;
+    }
+
+    const optimizedQuery = optimizeLocationQuery(query);
+    console.log(`Query optimization: "${query}" -> "${optimizedQuery}"`);
+
     // Build search parameters according to official API documentation
+    // Special handling for Nice, France
+    let searchTerm = query.toLowerCase() === 'nice' ? 'Nice France tourist attractions' : optimizedQuery;
+    
+    // Clean up search term by removing descriptive and unnecessary words
+    searchTerm = searchTerm
+      .replace(/\b(?:relaxed|cultural|historic|beautiful|amazing|wonderful|exciting|authentic|traditional|best|top|local)\b/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
     const searchParams = new URLSearchParams({
-      term: query,
+      term: searchTerm,
       limit: limit.toString(),
       page: "1",
       order: "relevance",
@@ -221,12 +307,20 @@ async function makeFreepikRequest(
     const fullUrl = `https://api.freepik.com/v1/resources?${searchParams}`;
     console.log(`🌐 Making request to: ${fullUrl}`);
 
-    const response = await fetch(fullUrl, {
+    const fetchPromise = fetch(fullUrl, {
       headers: {
         "x-freepik-api-key": FREEPIK_API_KEY,
         "Accept-Language": "en-US",
       },
     });
+
+    // Add a timeout for the fetch request
+    const response = (await Promise.race([
+      fetchPromise,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Request timeout")), 10000)
+      ),
+    ])) as Response;
 
     console.log(`📡 Response status: ${response.status}`);
 
@@ -248,25 +342,25 @@ async function makeFreepikRequest(
 
     const imageUrls = data.data
       .map((image) => {
-        // Extract the image URL from the actual API response structure
-        return (
-          image.image?.source?.url || // Main image source URL
-          image.thumbnails?.webp || // Fallback options (if they exist)
-          image.thumbnails?.jpg ||
-          image.image?.preview_url ||
-          image.image?.url ||
-          ""
-        );
-      })
-      .filter(Boolean);
+        // Extract the real image URL from the response
+        const imageUrl = image.image?.source?.url;
+        if (!imageUrl) return null;
 
-    console.log(`✅ Found ${imageUrls.length} Freepik images`);
-    console.log(`🖼️ Image URLs:`, imageUrls);
+        console.log("Processing Freepik image:", { imageUrl });
+        return imageUrl;
+      })
+      .filter((url): url is string => Boolean(url));
+
+    // Convert to simple array of URLs, no high/low quality distinction needed
+    const formattedUrls = imageUrls.map((url) => ({ url }));
+
+    console.log(`✅ Found ${formattedUrls.length} Freepik images`);
+    console.log(`🖼️ Image URLs:`, formattedUrls);
 
     // Cache the results
-    imageCache.set(cacheKey, { data: imageUrls, timestamp: Date.now() });
+    imageCache.set(cacheKey, { data: formattedUrls, timestamp: Date.now() });
 
-    return imageUrls;
+    return formattedUrls;
   } catch (error) {
     console.error("💥 Server-side Freepik error:", error);
     return [];
@@ -277,25 +371,34 @@ export function optimizeSearchQuery(
   activityName: string,
   activityAddress: string = "",
   activityCategory?: string,
-  userInterests?: string[]
+  userInterests?: string[],
+  providedCity: string = ""
 ): string {
   let cleanQuery = activityName.trim();
 
-  // Remove content in parentheses (often translations or descriptions)
-  cleanQuery = cleanQuery.replace(/\(.*?\)/g, "");
+  // First try to extract city from the activity name if it ends with a city name
+  const cityMatch = cleanQuery.match(/\s+([A-Z][a-zA-Z\s]+)$/);
+  const extractedCity = cityMatch ? cityMatch[1].trim() : "";
 
-  // Remove extra whitespace
-  cleanQuery = cleanQuery.replace(/\s+/g, " ").trim();
+  // Use provided city name or extracted one
+  const cityToUse = providedCity || extractedCity;
 
-  // Clean up problematic adjectives that might relate to food or vague descriptions
+  // Remove the city name from the query if it appears at the end
+  if (cityToUse) {
+    cleanQuery = cleanQuery.replace(new RegExp(`\\s+${cityToUse}$`), "");
+  }
+
+  // Remove parentheses and extra spaces
   cleanQuery = cleanQuery
-    .replace(/\b(milanese|barcelonese|valencian|parisian)\b/gi, "")
-    .replace(
-      /\b(charm|charming|beautiful|stunning|amazing|wonderful|lovely|historic|traditional|authentic|local|famous|popular|best|top)\b/gi,
-      ""
-    )
+    .replace(/\s*\([^)]*\)/g, "")
+    .replace(/\s+(?:A Day of|and|in the|at the|of the)/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+
+  // Always add the city name to the query
+  if (cityToUse) {
+    cleanQuery = `${cleanQuery} ${cityToUse}`;
+  }
 
   // Context-aware optimization based on activity category and interests
   const categoryModifiers = getCategoryModifiers(
@@ -303,34 +406,40 @@ export function optimizeSearchQuery(
     userInterests
   );
 
-  // Extract city name from address if provided
-  let cityName = "";
-  if (activityAddress) {
+  // Extract city name from address if no city is provided
+  let addressCity = "";
+  if (!cityToUse && activityAddress) {
     // General city pattern - look for city before postal code
     const cityMatch = activityAddress.match(
       /,\s*([A-Za-z\u00C0-\u017F]+(?:\s+[A-Za-z\u00C0-\u017F]+)*),?\s*(?:\d{4,})/i
     );
     if (cityMatch) {
-      cityName = cityMatch[1];
+      addressCity = cityMatch[1];
     }
   }
+
+  // Get final city name from all possible sources
+  const finalCity = cityToUse || addressCity;
 
   // PREFERRED: Keep specific landmark names with city
   // For example: "Central Sofia Market Hall" -> "Central Sofia Market Hall Sofia"
   // For example: "Louvre Museum" -> "Louvre Museum Paris"
-  if (cityName && !cleanQuery.toLowerCase().includes(cityName.toLowerCase())) {
-    return `${cleanQuery} ${cityName}`;
+  if (
+    finalCity &&
+    !cleanQuery.toLowerCase().includes(finalCity.toLowerCase())
+  ) {
+    return `${cleanQuery} ${finalCity}`;
   }
 
   // If we have category modifiers but no city, use them as fallback
-  if (categoryModifiers && !cityName) {
+  if (categoryModifiers && !finalCity) {
     const baseLocation = extractMainLocation(cleanQuery);
     return `${baseLocation} ${categoryModifiers}`;
   }
 
   // Only use generic landmark optimization as last resort for very generic names
-  if (isVeryGenericLandmark(cleanQuery) && cityName) {
-    return applyLandmarkOptimizations(cleanQuery, cityName);
+  if (isVeryGenericLandmark(cleanQuery) && finalCity) {
+    return applyLandmarkOptimizations(cleanQuery, finalCity);
   }
 
   return cleanQuery;
@@ -412,11 +521,14 @@ function isVeryGenericLandmark(query: string): boolean {
     "café",
   ];
 
-  const lowerQuery = query.toLowerCase().trim();
+  // Check if the query consists of just one or two words
+  // where one is a generic term
+  const words = query.split(/\s+/);
+  const hasGenericTerm = words.some((word) =>
+    genericTerms.includes(word.toLowerCase())
+  );
 
-  // Only return true if the query is EXACTLY one of these generic terms
-  // or is very short (less than 3 words)
-  return genericTerms.includes(lowerQuery) || query.split(" ").length <= 2;
+  return words.length <= 2 && hasGenericTerm;
 }
 
 function applyLandmarkOptimizations(query: string, cityName: string): string {

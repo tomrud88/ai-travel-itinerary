@@ -53,7 +53,7 @@ export const FreepikBudgetTracker: React.FC<BudgetTrackerProps> = ({
     };
 
     checkBudget();
-    const interval = setInterval(checkBudget, 30000); // Check every 30 seconds
+    const interval = setInterval(checkBudget, 120000); // Check every 2 minutes (reduced polling)
 
     return () => clearInterval(interval);
   }, [onBudgetWarning]);

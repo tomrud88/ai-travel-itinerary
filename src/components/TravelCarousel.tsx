@@ -1,5 +1,10 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+
+interface ImageLoadState {
+  lowQuality: boolean;
+  highQuality: boolean;
+}
 
 interface TravelCarouselProps {
   isVisible: boolean;
@@ -7,56 +12,82 @@ interface TravelCarouselProps {
 
 const TravelCarousel: React.FC<TravelCarouselProps> = ({ isVisible }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [imagesLoaded, setImagesLoaded] = useState(false);
+  const [loadStates, setLoadStates] = useState<Record<string, ImageLoadState>>(
+    {}
+  );
 
-  // Travel images from public folder
-  const travelImages = [
-    {
-      src: "/beautiful-blonde-woman-smiling-resting-relaxing-swimming-pool.webp",
-      alt: "Relaxing by the swimming pool",
-      caption: "✨ Finding perfect relaxation spots",
-    },
-    {
-      src: "/friends-sunbathing-smiling-lying-chaises-near-swimming-pool.webp",
-      alt: "Friends enjoying poolside time",
-      caption: "👥 Planning group adventures",
-    },
-    {
-      src: "/woman-enjoying-rural-surroundings.webp",
-      alt: "Woman enjoying rural surroundings",
-      caption: "🌿 Discovering hidden natural gems",
-    },
-    {
-      src: "/woman-with-hat-sitting-chairs-beach-beautiful-tropical-beach-woman-relaxing-tropical-beach-koh-nangyuan-island.webp",
-      alt: "Beautiful tropical beach relaxation",
-      caption: "🏖️ Finding pristine beach experiences",
-    },
-    {
-      src: "/view-child-summer-beach.webp",
-      alt: "Child enjoying summer beach",
-      caption: "🌊 Creating family memories",
-    },
-    {
-      src: "/cute-child-feeling-happy-smiles-with-her-mother-while-playing-with-parrot-bird.webp",
-      alt: "Family enjoying wildlife",
-      caption: "🦜 Curating wildlife encounters",
-    },
-    {
-      src: "/medium-shot-smiley-people-partying-together.webp",
-      alt: "People celebrating together",
-      caption: "🎉 Planning celebration moments",
-    },
-  ];
+  // Travel images from public folder - memoized to prevent re-renders
+  const travelImages = useMemo(
+    () => [
+      {
+        src: "/beautiful-blonde-woman-smiling-resting-relaxing-swimming-pool.webp",
+        alt: "Relaxing by the swimming pool",
+        caption: "✨ Finding perfect relaxation spots",
+      },
+      {
+        src: "/friends-sunbathing-smiling-lying-chaises-near-swimming-pool.webp",
+        alt: "Friends enjoying poolside time",
+        caption: "👥 Planning group adventures",
+      },
+      {
+        src: "/woman-enjoying-rural-surroundings.webp",
+        alt: "Woman enjoying rural surroundings",
+        caption: "🌿 Discovering hidden natural gems",
+      },
+      {
+        src: "/woman-with-hat-sitting-chairs-beach-beautiful-tropical-beach-woman-relaxing-tropical-beach-koh-nangyuan-island.webp",
+        alt: "Beautiful tropical beach relaxation",
+        caption: "🏖️ Finding pristine beach experiences",
+      },
+      {
+        src: "/view-child-summer-beach.webp",
+        alt: "Child enjoying summer beach",
+        caption: "🌊 Creating family memories",
+      },
+      {
+        src: "/cute-child-feeling-happy-smiles-with-her-mother-while-playing-with-parrot-bird.webp",
+        alt: "Family enjoying wildlife",
+        caption: "🦜 Curating wildlife encounters",
+      },
+      {
+        src: "/medium-shot-smiley-people-partying-together.webp",
+        alt: "People celebrating together",
+        caption: "🎉 Planning celebration moments",
+      },
+    ],
+    []
+  );
+
+  // Preload images for instant display
+  useEffect(() => {
+    const preloadImages = () => {
+      let loadedCount = 0;
+      travelImages.forEach((image) => {
+        const img = new Image();
+        img.onload = () => {
+          loadedCount++;
+          if (loadedCount === travelImages.length) {
+            setImagesLoaded(true);
+          }
+        };
+        img.src = image.src;
+      });
+    };
+
+    preloadImages();
+  }, [travelImages]);
 
   // Auto-advance carousel
   useEffect(() => {
-    if (!isVisible) return;
+    if (!isVisible || !imagesLoaded) return;
 
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % travelImages.length);
     }, 2500); // Change image every 2.5 seconds
 
     return () => clearInterval(interval);
-  }, [isVisible, travelImages.length]);
+  }, [isVisible, imagesLoaded, travelImages.length]);
 
   if (!isVisible) return null;
 
@@ -131,7 +162,7 @@ const TravelCarousel: React.FC<TravelCarouselProps> = ({ isVisible }) => {
                     src={image.src}
                     alt={image.alt}
                     className="w-full h-full object-cover"
-                    loading="lazy"
+                    loading="eager"
                   />
 
                   {/* Gradient Overlay */}
