@@ -2,46 +2,204 @@ import type { AIItineraryRequest, AIItineraryResponse } from "../types";
 import { generateText } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 
-export class AITravelService {
+// Gemini API usage tracking with persistent storage
+class GeminiRateLimit {
   private static lastRequestTime = 0;
+  private static requestCount = 0;
   private static dailyRequestCount = 0;
+  private static monthlyRequestCount = 0;
   private static lastResetDate = new Date().getDate();
+  private static lastResetMonth = new Date().getMonth();
+  private static readonly MAX_REQUESTS_PER_MINUTE = 15; // Gemini free tier: 15 RPM
+  private static readonly MAX_DAILY_REQUESTS = 500; // Updated: 500 requests per day
+  private static readonly MAX_MONTHLY_REQUESTS = 15000; // Updated: 15,000 requests/month
+  private static readonly MIN_INTERVAL = 4000; // 4 seconds between requests for 15 RPM
+  private static readonly STORAGE_KEY = "gemini_usage_tracking";
+  private static isInitialized = false;
 
   /**
-   * Rate limiting for free tier compliance
+   * Initialize usage tracking from stored data
    */
-  private async enforceRateLimit(): Promise<void> {
+  private static initializeFromStorage(): void {
+    if (this.isInitialized) return;
+
+    try {
+      // Try localStorage first (client-side)
+      if (typeof localStorage !== "undefined") {
+        const storedData = localStorage.getItem(this.STORAGE_KEY);
+        if (storedData) {
+          const data = JSON.parse(storedData);
+          const now = new Date();
+
+          // Restore data if it's from the same month and day
+          if (
+            data.month === now.getMonth() &&
+            data.year === now.getFullYear()
+          ) {
+            this.monthlyRequestCount = data.monthlyRequestCount || 0;
+            this.lastResetMonth = data.month;
+
+            if (data.date === now.getDate()) {
+              this.dailyRequestCount = data.dailyRequestCount || 0;
+              this.lastResetDate = data.date;
+            } else {
+              // New day, reset daily counter but keep monthly
+              this.dailyRequestCount = 0;
+              this.lastResetDate = now.getDate();
+            }
+          } else {
+            // New month, reset all counters
+            this.monthlyRequestCount = 0;
+            this.dailyRequestCount = 0;
+            this.lastResetMonth = now.getMonth();
+            this.lastResetDate = now.getDate();
+          }
+
+          console.log("📊 Restored Gemini usage from localStorage:", {
+            monthly: this.monthlyRequestCount,
+            daily: this.dailyRequestCount,
+          });
+        } else {
+          console.log("📊 No existing Gemini usage data found, starting fresh");
+        }
+      }
+    } catch (error) {
+      console.warn("⚠️ Failed to load Gemini usage data from storage:", error);
+    }
+
+    this.isInitialized = true;
+  }
+
+  /**
+   * Save current usage data to storage
+   */
+  private static saveToStorage(): void {
+    try {
+      const now = new Date();
+      const data = {
+        monthlyRequestCount: this.monthlyRequestCount,
+        dailyRequestCount: this.dailyRequestCount,
+        month: now.getMonth(),
+        year: now.getFullYear(),
+        date: now.getDate(),
+        lastUpdated: now.toISOString(),
+      };
+
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
+      }
+    } catch (error) {
+      console.warn("⚠️ Failed to save Gemini usage data to storage:", error);
+    }
+  }
+
+  static async enforceLimit(): Promise<void> {
+    // Initialize from storage on first call
+    this.initializeFromStorage();
+
     const now = Date.now();
     const currentDate = new Date().getDate();
+    const currentMonth = new Date().getMonth();
+
+    // Reset monthly counter at start of new month
+    if (currentMonth !== this.lastResetMonth) {
+      this.monthlyRequestCount = 0;
+      this.dailyRequestCount = 0;
+      this.requestCount = 0;
+      this.lastResetMonth = currentMonth;
+      this.lastResetDate = currentDate;
+      console.log("🔄 Gemini rate limit counters reset for new month");
+    }
 
     // Reset daily counter at midnight
-    if (currentDate !== AITravelService.lastResetDate) {
-      AITravelService.dailyRequestCount = 0;
-      AITravelService.lastResetDate = currentDate;
+    if (currentDate !== this.lastResetDate) {
+      this.dailyRequestCount = 0;
+      this.requestCount = 0;
+      this.lastResetDate = currentDate;
+      console.log("🔄 Gemini daily counters reset");
     }
 
-    // Check daily limit (using conservative 150 to leave buffer)
-    if (AITravelService.dailyRequestCount >= 150) {
-      throw new Error("Daily API limit reached. Please try again tomorrow.");
+    // Check monthly limit
+    if (this.monthlyRequestCount >= this.MAX_MONTHLY_REQUESTS) {
+      throw new Error(
+        `🚫 Monthly Gemini API limit reached (${this.MAX_MONTHLY_REQUESTS} requests). Please wait until next month.`
+      );
     }
 
-    // Enforce minimum 4-second delay between requests (15 RPM = 4s intervals)
-    const timeSinceLastRequest = now - AITravelService.lastRequestTime;
-    const minInterval = 4000; // 4 seconds for 15 RPM
+    // Check daily limit
+    if (this.dailyRequestCount >= this.MAX_DAILY_REQUESTS) {
+      throw new Error(
+        `Gemini daily API limit reached (${this.MAX_DAILY_REQUESTS} requests). Please try again tomorrow.`
+      );
+    }
 
-    if (timeSinceLastRequest < minInterval) {
-      const waitTime = minInterval - timeSinceLastRequest;
-      console.log(`⏳ Rate limiting: waiting ${waitTime}ms before API call`);
+    // Reset minute counter if more than a minute has passed
+    if (now - this.lastRequestTime > 60000) {
+      this.requestCount = 0;
+    }
+
+    // Check per-minute limit
+    if (this.requestCount >= this.MAX_REQUESTS_PER_MINUTE) {
+      throw new Error(
+        `Gemini rate limit exceeded (${this.MAX_REQUESTS_PER_MINUTE} requests per minute). Please wait before making more requests.`
+      );
+    }
+
+    // Enforce minimum interval between requests
+    const timeSinceLastRequest = now - this.lastRequestTime;
+    if (timeSinceLastRequest < this.MIN_INTERVAL) {
+      const waitTime = this.MIN_INTERVAL - timeSinceLastRequest;
+      console.log(
+        `⏳ Gemini rate limiting: waiting ${waitTime}ms before API call`
+      );
       await new Promise((resolve) => setTimeout(resolve, waitTime));
     }
 
-    AITravelService.lastRequestTime = Date.now();
-    AITravelService.dailyRequestCount++;
+    this.lastRequestTime = Date.now();
+    this.requestCount++;
+    this.dailyRequestCount++;
+    this.monthlyRequestCount++;
 
+    // Save updated counters to storage
+    this.saveToStorage();
+
+    const remainingMonthly =
+      this.MAX_MONTHLY_REQUESTS - this.monthlyRequestCount;
+    const remainingDaily = this.MAX_DAILY_REQUESTS - this.dailyRequestCount;
+
+    console.log(`🤖 Gemini AI Usage Tracking:`);
     console.log(
-      `📊 API Usage: ${AITravelService.dailyRequestCount}/150 daily requests`
+      `   Monthly: ${this.monthlyRequestCount}/${this.MAX_MONTHLY_REQUESTS} requests (Free Tier)`
     );
+    console.log(
+      `   Daily: ${this.dailyRequestCount}/${this.MAX_DAILY_REQUESTS} requests`
+    );
+    console.log(
+      `   Per minute: ${this.requestCount}/${this.MAX_REQUESTS_PER_MINUTE} requests`
+    );
+    console.log(`   Remaining today: ${remainingDaily} requests`);
+    console.log(`   Remaining this month: ${remainingMonthly} requests`);
   }
+
+  /**
+   * Get current usage statistics
+   */
+  static getUsageStats() {
+    return {
+      monthlyUsed: this.monthlyRequestCount,
+      monthlyLimit: this.MAX_MONTHLY_REQUESTS,
+      dailyUsed: this.dailyRequestCount,
+      dailyLimit: this.MAX_DAILY_REQUESTS,
+      minuteUsed: this.requestCount,
+      minuteLimit: this.MAX_REQUESTS_PER_MINUTE,
+      percentageUsed:
+        (this.monthlyRequestCount / this.MAX_MONTHLY_REQUESTS) * 100,
+      tier: "free",
+    };
+  }
+}
+
+export class AITravelService {
   /**
    * Helper method to list available models (for debugging) - Server-side only
    */
@@ -448,7 +606,7 @@ Generate a realistic, relaxed, and culturally immersive itinerary with concise d
 
     try {
       // Enforce rate limiting before making API call
-      await this.enforceRateLimit();
+      await GeminiRateLimit.enforceLimit();
 
       console.log("🤖 Calling Google Gemini with prompt...");
 
@@ -736,3 +894,10 @@ Generate a realistic, relaxed, and culturally immersive itinerary with concise d
 }
 
 export const aiTravelService = new AITravelService();
+
+/**
+ * Export function to get Gemini usage statistics
+ */
+export function getGeminiUsageStats() {
+  return GeminiRateLimit.getUsageStats();
+}

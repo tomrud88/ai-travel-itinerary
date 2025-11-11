@@ -147,6 +147,7 @@ export default function ProfessionalItinerary({
       Valencia: ["Valencia", "VLC"],
       Zaragoza: ["Zaragoza", "Saragossa", "ZAZ"],
       Dublin: ["Dublin", "DUB"],
+      Dubai: ["Dubai", "DXB", "UAE"],
       Porto: ["Porto", "Oporto"],
       Madrid: ["Madrid", "MAD"],
       Paris: ["Paris", "Parisian"],
@@ -192,9 +193,20 @@ export default function ProfessionalItinerary({
     // Then try to find exact city names or their variants
     for (const [cityName, variants] of Object.entries(cities)) {
       if (
-        variants.some((variant) =>
-          normalizedTitle.toLowerCase().includes(variant.toLowerCase())
-        )
+        variants.some((variant) => {
+          const variantLower = variant.toLowerCase();
+          const titleLower = normalizedTitle.toLowerCase();
+
+          // Use word boundaries for better matching to avoid partial matches
+          // Check for exact match or match with word boundaries
+          return (
+            titleLower === variantLower ||
+            titleLower.includes(` ${variantLower} `) ||
+            titleLower.startsWith(`${variantLower} `) ||
+            titleLower.endsWith(` ${variantLower}`) ||
+            (variant.length > 3 && titleLower.includes(variantLower))
+          ); // Only allow substring match for longer names
+        })
       ) {
         console.log(`Found city "${cityName}" in known city list`);
         return cityName;
@@ -224,9 +236,19 @@ export default function ProfessionalItinerary({
     // Check if the cleaned up text matches any city variants
     for (const [cityName, variants] of Object.entries(cities)) {
       if (
-        variants.some((variant) =>
-          extracted.toLowerCase().includes(variant.toLowerCase())
-        )
+        variants.some((variant) => {
+          const variantLower = variant.toLowerCase();
+          const extractedLower = extracted.toLowerCase();
+
+          // Use word boundaries for better matching to avoid partial matches
+          return (
+            extractedLower === variantLower ||
+            extractedLower.includes(` ${variantLower} `) ||
+            extractedLower.startsWith(`${variantLower} `) ||
+            extractedLower.endsWith(` ${variantLower}`) ||
+            (variant.length > 3 && extractedLower.includes(variantLower))
+          );
+        })
       ) {
         return cityName;
       }

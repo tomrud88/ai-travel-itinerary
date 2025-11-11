@@ -3,6 +3,9 @@
  * This runs on the server and avoids CORS issues
  */
 
+import * as fs from "fs";
+import * as path from "path";
+
 interface FreepikResponse {
   data: Array<{
     id: string;
@@ -45,8 +48,145 @@ class FreepikRateLimit {
   private static readonly MAX_DAILY_REQUESTS = 300; // Free tier: 300 requests per day
   private static readonly MAX_MONTHLY_REQUESTS = 3000; // Free tier: 3000 requests/month
   private static readonly MIN_INTERVAL = 500; // 0.5 second between requests - allows for burst capacity
+  private static readonly STORAGE_KEY = "freepik_usage_tracking";
+  private static isInitialized = false;
+
+  /**
+   * Initialize usage tracking from stored data
+   */
+  private static initializeFromStorage(): void {
+    if (this.isInitialized) return;
+
+    try {
+      // For server-side, use a simple file-based storage approach
+      try {
+        // Store in a temp file that persists across restarts
+        const storageFile = path.join(process.cwd(), ".freepik-usage.json");
+
+        if (fs.existsSync(storageFile)) {
+          const storedData = fs.readFileSync(storageFile, "utf8");
+          const data = JSON.parse(storedData);
+          const now = new Date();
+
+          // Restore data if it's from the same month and day
+          if (
+            data.month === now.getMonth() &&
+            data.year === now.getFullYear()
+          ) {
+            this.monthlyRequestCount = data.monthlyRequestCount || 0;
+            this.lastResetMonth = data.month;
+
+            if (data.date === now.getDate()) {
+              this.dailyRequestCount = data.dailyRequestCount || 0;
+              this.lastResetDate = data.date;
+            } else {
+              // New day, reset daily counter but keep monthly
+              this.dailyRequestCount = 0;
+              this.lastResetDate = now.getDate();
+            }
+          } else {
+            // New month, reset all counters
+            this.monthlyRequestCount = 0;
+            this.dailyRequestCount = 0;
+            this.lastResetMonth = now.getMonth();
+            this.lastResetDate = now.getDate();
+          }
+
+          console.log("📊 Restored Freepik usage from file storage:", {
+            monthly: this.monthlyRequestCount,
+            daily: this.dailyRequestCount,
+          });
+        } else {
+          console.log(
+            "📊 No existing Freepik usage data found, starting fresh"
+          );
+        }
+      } catch (error) {
+        console.warn(
+          "⚠️ File system not available, using memory-only tracking:",
+          error
+        );
+      }
+
+      // Fallback to localStorage for client-side environments
+      if (typeof localStorage !== "undefined") {
+        // Fallback to localStorage for client-side
+        const storedData = localStorage.getItem(this.STORAGE_KEY);
+        if (storedData) {
+          const data = JSON.parse(storedData);
+          const now = new Date();
+
+          if (
+            data.month === now.getMonth() &&
+            data.year === now.getFullYear()
+          ) {
+            this.monthlyRequestCount = data.monthlyRequestCount || 0;
+            this.lastResetMonth = data.month;
+
+            if (data.date === now.getDate()) {
+              this.dailyRequestCount = data.dailyRequestCount || 0;
+              this.lastResetDate = data.date;
+            } else {
+              this.dailyRequestCount = 0;
+              this.lastResetDate = now.getDate();
+            }
+          } else {
+            this.monthlyRequestCount = 0;
+            this.dailyRequestCount = 0;
+            this.lastResetMonth = now.getMonth();
+            this.lastResetDate = now.getDate();
+          }
+
+          console.log("📊 Restored Freepik usage from localStorage:", {
+            monthly: this.monthlyRequestCount,
+            daily: this.dailyRequestCount,
+          });
+        }
+      }
+    } catch (error) {
+      console.warn("⚠️ Failed to load Freepik usage data from storage:", error);
+      // Continue with default values if storage fails
+    }
+
+    this.isInitialized = true;
+  }
+
+  /**
+   * Save current usage data to storage
+   */
+  private static saveToStorage(): void {
+    try {
+      const now = new Date();
+      const data = {
+        monthlyRequestCount: this.monthlyRequestCount,
+        dailyRequestCount: this.dailyRequestCount,
+        month: now.getMonth(),
+        year: now.getFullYear(),
+        date: now.getDate(),
+        lastUpdated: now.toISOString(),
+      };
+
+      // Try file-based storage first (server-side)
+      try {
+        const storageFile = path.join(process.cwd(), ".freepik-usage.json");
+        fs.writeFileSync(storageFile, JSON.stringify(data, null, 2));
+      } catch (error) {
+        // Fallback to localStorage if available (client-side)
+        if (typeof localStorage !== "undefined") {
+          localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
+        } else {
+          console.warn("⚠️ No storage method available:", error);
+        }
+      }
+    } catch (error) {
+      console.warn("⚠️ Failed to save Freepik usage data to storage:", error);
+    }
+  }
 
   static async enforceLimit(): Promise<void> {
+    // Initialize from storage on first call
+    this.initializeFromStorage();
+
     const now = Date.now();
     const currentDate = new Date().getDate();
     const currentMonth = new Date().getMonth();
@@ -117,6 +257,10 @@ class FreepikRateLimit {
     FreepikRateLimit.dailyRequestCount++;
     FreepikRateLimit.monthlyRequestCount++;
 
+    // Save updated counters to storage
+
+    FreepikRateLimit.saveToStorage();
+
     const remainingMonthly =
       FreepikRateLimit.MAX_MONTHLY_REQUESTS -
       FreepikRateLimit.monthlyRequestCount;
@@ -157,8 +301,8 @@ export async function searchFreepikImages(
   limit: number = 3
 ): Promise<ImageUrls[]> {
   // Handle special cases for city names
-  if (query.toLowerCase() === 'nice' || query.toLowerCase() === 'nice city') {
-    query = 'Nice France tourist attractions';
+  if (query.toLowerCase() === "nice" || query.toLowerCase() === "nice city") {
+    query = "Nice France tourist attractions";
   }
   const cacheKey = `${query}-${limit}`;
 
@@ -198,8 +342,11 @@ async function makeFreepikRequest(
 ): Promise<ImageUrls[]> {
   // Clean up query by removing descriptive and unnecessary words first
   query = query
-    .replace(/\b(?:relaxed|cultural|historic|beautiful|amazing|wonderful|exciting|authentic|traditional|best|top|local)\b/gi, '')
-    .replace(/\s+/g, ' ')
+    .replace(
+      /\b(?:relaxed|cultural|historic|beautiful|amazing|wonderful|exciting|authentic|traditional|best|top|local)\b/gi,
+      ""
+    )
+    .replace(/\s+/g, " ")
     .trim();
 
   const FREEPIK_API_KEY = process.env.VITE_FREEPIK_API_KEY;
@@ -234,46 +381,49 @@ async function makeFreepikRequest(
 
       // Extract location name from common patterns
       const patterns = [
-        /^(\d+)\s+days?\s+in\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,  // "N days in Location"
-        /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:adventure|tour|trip|journey)/i,  // "Location Adventure/Tour/Trip"
-        /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i  // "Location" by itself
+        /^(\d+)\s+days?\s+in\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i, // "N days in Location"
+        /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:adventure|tour|trip|journey)/i, // "Location Adventure/Tour/Trip"
+        /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i, // "Location" by itself
       ];
 
       for (const pattern of patterns) {
         const match = query.match(pattern);
         if (match) {
           // For the "N days in Location" pattern, the city is in the second capture group
-          const location = (pattern.toString().includes('days') ? match[2] : match[1]).trim();
-          
+          const location = (
+            pattern.toString().includes("days") ? match[2] : match[1]
+          ).trim();
+
           // Special handling for cities that could be misinterpreted
-          if (location.toLowerCase() === 'nice') {
-            return 'Nice France landmarks attractions';
+          if (location.toLowerCase() === "nice") {
+            return "Nice France landmarks attractions";
           }
-          
+
           // If we found a location and it looks like a proper city name
           if (location && location.length > 2 && /^[A-Z]/.test(location)) {
-          // Add relevant search terms based on the query context
-          const context = query.toLowerCase();
-          if (context.includes("landmark") || context.includes("monument")) {
-            return `${location} landmarks monuments architecture`;
-          } else if (
-            context.includes("restaurant") ||
-            context.includes("food")
-          ) {
-            return `${location} restaurants cuisine`;
-          } else if (
-            context.includes("museum") ||
-            context.includes("gallery")
-          ) {
-            return `${location} museums galleries`;
-          } else if (context.includes("park") || context.includes("garden")) {
-            return `${location} parks gardens nature`;
-          } else {
-            // Special handling for cities that could be misinterpreted
-            if (location.toLowerCase() === "nice") {
-              return "Nice France city";
+            // Add relevant search terms based on the query context
+            const context = query.toLowerCase();
+            if (context.includes("landmark") || context.includes("monument")) {
+              return `${location} landmarks monuments architecture`;
+            } else if (
+              context.includes("restaurant") ||
+              context.includes("food")
+            ) {
+              return `${location} restaurants cuisine`;
+            } else if (
+              context.includes("museum") ||
+              context.includes("gallery")
+            ) {
+              return `${location} museums galleries`;
+            } else if (context.includes("park") || context.includes("garden")) {
+              return `${location} parks gardens nature`;
+            } else {
+              // Special handling for cities that could be misinterpreted
+              if (location.toLowerCase() === "nice") {
+                return "Nice France city";
+              }
+              return `${location} iconic landmark monument famous`;
             }
-            return `${location} iconic landmark monument famous`;
           }
         }
       }
@@ -287,12 +437,18 @@ async function makeFreepikRequest(
 
     // Build search parameters according to official API documentation
     // Special handling for Nice, France
-    let searchTerm = query.toLowerCase() === 'nice' ? 'Nice France tourist attractions' : optimizedQuery;
-    
+    let searchTerm =
+      query.toLowerCase() === "nice"
+        ? "Nice France tourist attractions"
+        : optimizedQuery;
+
     // Clean up search term by removing descriptive and unnecessary words
     searchTerm = searchTerm
-      .replace(/\b(?:relaxed|cultural|historic|beautiful|amazing|wonderful|exciting|authentic|traditional|best|top|local)\b/gi, '')
-      .replace(/\s+/g, ' ')
+      .replace(
+        /\b(?:relaxed|cultural|historic|beautiful|amazing|wonderful|exciting|authentic|traditional|best|top|local)\b/gi,
+        ""
+      )
+      .replace(/\s+/g, " ")
       .trim();
 
     const searchParams = new URLSearchParams({
