@@ -2,7 +2,7 @@ import type { AIItineraryRequest, AIItineraryResponse } from "../types";
 import { generateText } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 
-// Gemini API usage tracking with persistent storage
+// Gemini API usage tracking with secure server-side persistent storage
 class GeminiRateLimit {
   private static lastRequestTime = 0;
   private static requestCount = 0;
@@ -14,82 +14,106 @@ class GeminiRateLimit {
   private static readonly MAX_DAILY_REQUESTS = 500; // Updated: 500 requests per day
   private static readonly MAX_MONTHLY_REQUESTS = 15000; // Updated: 15,000 requests/month
   private static readonly MIN_INTERVAL = 4000; // 4 seconds between requests for 15 RPM
-  private static readonly STORAGE_KEY = "gemini_usage_tracking";
   private static isInitialized = false;
 
   /**
-   * Initialize usage tracking from stored data
+   * Initialize usage tracking from secure server-side storage
    */
-  private static initializeFromStorage(): void {
+  private static async initializeFromStorage(): Promise<void> {
     if (this.isInitialized) return;
 
     try {
-      // Try localStorage first (client-side)
-      if (typeof localStorage !== "undefined") {
-        const storedData = localStorage.getItem(this.STORAGE_KEY);
-        if (storedData) {
-          const data = JSON.parse(storedData);
-          const now = new Date();
+      console.log("📡 Loading Gemini usage from secure server storage...");
+      const response = await fetch("/api/gemini-usage");
 
-          // Restore data if it's from the same month and day
-          if (
-            data.month === now.getMonth() &&
-            data.year === now.getFullYear()
-          ) {
-            this.monthlyRequestCount = data.monthlyRequestCount || 0;
-            this.lastResetMonth = data.month;
+      if (response.ok) {
+        const serverUsage = await response.json();
 
-            if (data.date === now.getDate()) {
-              this.dailyRequestCount = data.dailyRequestCount || 0;
-              this.lastResetDate = data.date;
-            } else {
-              // New day, reset daily counter but keep monthly
-              this.dailyRequestCount = 0;
-              this.lastResetDate = now.getDate();
-            }
-          } else {
-            // New month, reset all counters
-            this.monthlyRequestCount = 0;
-            this.dailyRequestCount = 0;
-            this.lastResetMonth = now.getMonth();
-            this.lastResetDate = now.getDate();
-          }
+        // Convert server format to internal format
+        this.monthlyRequestCount = serverUsage.monthly.count || 0;
+        this.dailyRequestCount = serverUsage.daily.count || 0;
+        this.requestCount = serverUsage.minute.count || 0;
+        this.lastRequestTime = serverUsage.minute.startTime || 0;
 
-          console.log("📊 Restored Gemini usage from localStorage:", {
-            monthly: this.monthlyRequestCount,
-            daily: this.dailyRequestCount,
-          });
-        } else {
-          console.log("📊 No existing Gemini usage data found, starting fresh");
-        }
+        // Parse date info
+        const currentDate = new Date();
+        this.lastResetMonth = currentDate.getMonth();
+        this.lastResetDate = currentDate.getDate();
+
+        console.log("📊 Restored Gemini usage from server:", {
+          monthly: this.monthlyRequestCount,
+          daily: this.dailyRequestCount,
+          minute: this.requestCount,
+        });
+      } else {
+        console.log("📊 No existing server usage data found, starting fresh");
+        this.monthlyRequestCount = 0;
+        this.dailyRequestCount = 0;
+        this.requestCount = 0;
+        this.lastRequestTime = 0;
+        this.lastResetMonth = new Date().getMonth();
+        this.lastResetDate = new Date().getDate();
       }
     } catch (error) {
-      console.warn("⚠️ Failed to load Gemini usage data from storage:", error);
+      console.warn(
+        "⚠️ Failed to load Gemini usage from server, starting fresh:",
+        error
+      );
+      this.monthlyRequestCount = 0;
+      this.dailyRequestCount = 0;
+      this.requestCount = 0;
+      this.lastRequestTime = 0;
+      this.lastResetMonth = new Date().getMonth();
+      this.lastResetDate = new Date().getDate();
     }
 
     this.isInitialized = true;
   }
 
   /**
-   * Save current usage data to storage
+   * Save current usage data to secure server-side storage
    */
-  private static saveToStorage(): void {
+  private static async saveToStorage(): Promise<void> {
     try {
       const now = new Date();
-      const data = {
-        monthlyRequestCount: this.monthlyRequestCount,
-        dailyRequestCount: this.dailyRequestCount,
-        month: now.getMonth(),
-        year: now.getFullYear(),
-        date: now.getDate(),
+      const serverData = {
+        minute: {
+          count: this.requestCount,
+          startTime: this.lastRequestTime,
+        },
+        daily: {
+          count: this.dailyRequestCount,
+          date: now.toISOString().split("T")[0],
+        },
+        monthly: {
+          count: this.monthlyRequestCount,
+          month: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
+            2,
+            "0"
+          )}`,
+        },
         lastUpdated: now.toISOString(),
       };
 
-      if (typeof localStorage !== "undefined") {
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
+      console.log("💾 Saving Gemini usage to secure server storage...");
+
+      const response = await fetch("/api/gemini-usage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(serverData),
+      });
+
+      if (response.ok) {
+        console.log("✅ Gemini usage saved to server (secure):", {
+          monthly: this.monthlyRequestCount,
+          daily: this.dailyRequestCount,
+          minute: this.requestCount,
+        });
+      } else {
+        console.error("❌ Failed to save Gemini usage to server");
       }
     } catch (error) {
-      console.warn("⚠️ Failed to save Gemini usage data to storage:", error);
+      console.error("❌ Error saving Gemini usage to server:", error);
     }
   }
 
@@ -160,14 +184,14 @@ class GeminiRateLimit {
     this.dailyRequestCount++;
     this.monthlyRequestCount++;
 
-    // Save updated counters to storage
-    this.saveToStorage();
+    // Save updated counters to secure storage
+    await this.saveToStorage();
 
     const remainingMonthly =
       this.MAX_MONTHLY_REQUESTS - this.monthlyRequestCount;
     const remainingDaily = this.MAX_DAILY_REQUESTS - this.dailyRequestCount;
 
-    console.log(`🤖 Gemini AI Usage Tracking:`);
+    console.log(`🤖 Gemini AI Usage Tracking (Secure Server Storage):`);
     console.log(
       `   Monthly: ${this.monthlyRequestCount}/${this.MAX_MONTHLY_REQUESTS} requests (Free Tier)`
     );

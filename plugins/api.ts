@@ -215,6 +215,33 @@ export function apiPlugin(): Plugin {
           }
         }
       );
+
+      // Gemini usage tracking endpoint (secure server-side storage)
+      server.middlewares.use("/api/gemini-usage", async (req, res) => {
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+        if (req.method === "OPTIONS") {
+          res.statusCode = 200;
+          res.end();
+          return;
+        }
+
+        try {
+          // Import the gemini usage handler
+          const { default: geminiUsageHandler } = await import(
+            "../server/api/gemini-usage"
+          );
+
+          await geminiUsageHandler(req, res);
+        } catch (error) {
+          console.error("Gemini Usage API Error:", error);
+          res.statusCode = 500;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Internal server error" }));
+        }
+      });
     },
   };
 }
