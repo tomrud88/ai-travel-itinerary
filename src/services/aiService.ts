@@ -35,15 +35,29 @@ class GeminiRateLimit {
         this.requestCount = serverUsage.minute.count || 0;
         this.lastRequestTime = serverUsage.minute.startTime || 0;
 
-        // Parse date info
-        const currentDate = new Date();
-        this.lastResetMonth = currentDate.getMonth();
-        this.lastResetDate = currentDate.getDate();
+        // Parse stored date info
+        if (serverUsage.daily.date) {
+          const storedDate = new Date(serverUsage.daily.date);
+          this.lastResetDate = storedDate.getDate();
+        } else {
+          this.lastResetDate = new Date().getDate();
+        }
+
+        if (serverUsage.monthly.month) {
+          const [, month] = serverUsage.monthly.month.split("-");
+          this.lastResetMonth = parseInt(month) - 1; // Month is 0-indexed
+        } else {
+          this.lastResetMonth = new Date().getMonth();
+        }
 
         console.log("📊 Restored Gemini usage from server:", {
           monthly: this.monthlyRequestCount,
           daily: this.dailyRequestCount,
           minute: this.requestCount,
+          lastResetDate: this.lastResetDate,
+          lastResetMonth: this.lastResetMonth,
+          currentDate: new Date().getDate(),
+          currentMonth: new Date().getMonth(),
         });
       } else {
         console.log("📊 No existing server usage data found, starting fresh");
@@ -119,7 +133,7 @@ class GeminiRateLimit {
 
   static async enforceLimit(): Promise<void> {
     // Initialize from storage on first call
-    this.initializeFromStorage();
+    await this.initializeFromStorage();
 
     const now = Date.now();
     const currentDate = new Date().getDate();

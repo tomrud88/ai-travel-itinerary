@@ -19,7 +19,7 @@ const AIItineraryGenerator: React.FC<AIItineraryGeneratorProps> = ({
 }) => {
   const [formData, setFormData] = useState({
     destination: "",
-    duration: 4,
+    duration: 2,
     budget: 1000,
     travelers: 2,
     startDate: "",
@@ -35,6 +35,8 @@ const AIItineraryGenerator: React.FC<AIItineraryGeneratorProps> = ({
   });
 
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+  const [showBudgetWarning, setShowBudgetWarning] = useState(false);
+  const [showDurationWarning, setShowDurationWarning] = useState(false);
 
   const interestOptions = [
     "SIGHTSEEING",
@@ -148,6 +150,12 @@ const AIItineraryGenerator: React.FC<AIItineraryGeneratorProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validate duration before submission
+    if (formData.duration < 1) {
+      setShowDurationWarning(true);
+      return;
+    }
+
     const request: AIItineraryRequest = {
       destinations: [formData.destination], // Single destination as array
       duration: formData.duration,
@@ -215,14 +223,39 @@ const AIItineraryGenerator: React.FC<AIItineraryGeneratorProps> = ({
               min="1"
               max="4"
               value={formData.duration}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  duration: parseInt(e.target.value),
-                }))
-              }
+              onChange={(e) => {
+                const duration = parseInt(e.target.value);
+                const isValidDuration = duration >= 1;
+
+                setShowDurationWarning(!isValidDuration);
+
+                if (isValidDuration) {
+                  const maxBudget = formData.travelers * duration * 10000;
+                  const adjustedBudget = Math.min(formData.budget, maxBudget);
+                  setShowBudgetWarning(false);
+                  setFormData((prev) => ({
+                    ...prev,
+                    duration,
+                    budget: adjustedBudget,
+                    preferences: {
+                      ...prev.preferences,
+                      budget: adjustedBudget,
+                    },
+                  }));
+                } else {
+                  setFormData((prev) => ({
+                    ...prev,
+                    duration,
+                  }));
+                }
+              }}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200 text-gray-900"
             />
+            {showDurationWarning && (
+              <p className="text-sm text-red-500 mt-1">
+                Duration must be at least 1 day
+              </p>
+            )}
           </motion.div>
 
           <motion.div variants={itemVariants}>
@@ -232,17 +265,35 @@ const AIItineraryGenerator: React.FC<AIItineraryGeneratorProps> = ({
             <input
               type="number"
               min="100"
+              max={formData.travelers * formData.duration * 10000}
               value={formData.budget}
               onChange={(e) => {
                 const budget = parseInt(e.target.value);
+                const maxBudget =
+                  formData.travelers * formData.duration * 10000;
+                const isExceedingLimit = budget > maxBudget;
+                const finalBudget = Math.min(budget, maxBudget);
+
+                setShowBudgetWarning(isExceedingLimit);
                 setFormData((prev) => ({
                   ...prev,
-                  budget,
-                  preferences: { ...prev.preferences, budget },
+                  budget: finalBudget,
+                  preferences: { ...prev.preferences, budget: finalBudget },
                 }));
               }}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200 text-gray-900"
             />
+            {showBudgetWarning && (
+              <p className="text-sm text-red-500 mt-1">
+                Budget limited to $
+                {(
+                  formData.travelers *
+                  formData.duration *
+                  10000
+                ).toLocaleString()}
+                (maximum $10,000 per day per traveler)
+              </p>
+            )}
           </motion.div>
         </div>
 
@@ -256,10 +307,18 @@ const AIItineraryGenerator: React.FC<AIItineraryGeneratorProps> = ({
               value={formData.travelers}
               onChange={(e) => {
                 const travelers = parseInt(e.target.value);
+                const maxBudget = travelers * formData.duration * 10000;
+                const adjustedBudget = Math.min(formData.budget, maxBudget);
+                setShowBudgetWarning(false);
                 setFormData((prev) => ({
                   ...prev,
                   travelers,
-                  preferences: { ...prev.preferences, travelers },
+                  budget: adjustedBudget,
+                  preferences: {
+                    ...prev.preferences,
+                    travelers,
+                    budget: adjustedBudget,
+                  },
                 }));
               }}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200 text-gray-900"

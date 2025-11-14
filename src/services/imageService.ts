@@ -8,6 +8,7 @@ interface ImageUrls {
 
 export class ImageService {
   private static imageCache = new Map<string, ImageUrls>();
+  private static requestCooldown = new Map<string, number>();
   private static requestCount = 0;
   private static lastMinuteStart = Date.now();
   // Tiny blurred placeholder (1x1 pixel, base64 encoded)
@@ -67,8 +68,6 @@ export class ImageService {
       .trim();
 
     // Always ensure the city name is present in the query
-    const finalQuery = `${cleanName} ${destinationCity}`;
-
     // Always ensure the city name is present in the query
     const searchQuery = `${cleanName} ${destinationCity}`.trim();
     const cacheKey = searchQuery.toLowerCase();
@@ -84,6 +83,15 @@ export class ImageService {
       console.log(`🎯 Using cached Freepik image for: "${searchQuery}"`);
       return this.imageCache.get(cacheKey)!;
     }
+
+    // Check if we made a recent request for this query to prevent spam
+    const now = Date.now();
+    const lastRequestTime = this.requestCooldown.get(cacheKey) || 0;
+    if (now - lastRequestTime < 500) { // 500ms cooldown
+      console.log(`⏰ Cooldown active for: "${searchQuery}"`);
+      return this.pendingRequests.get(cacheKey) || null;
+    }
+    this.requestCooldown.set(cacheKey, now);
 
     // Check if there's already a pending request for this query
     const pendingRequest = this.pendingRequests.get(cacheKey);

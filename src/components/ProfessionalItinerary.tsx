@@ -140,6 +140,7 @@ export default function ProfessionalItinerary({
   // Extract city name more intelligently
   const extractDestination = (title: string): string => {
     if (!title) return "destination";
+    console.log(`🏙️ Extracting destination from title: "${title}"`);
 
     // Common city names to look for - expanded list with variants
     const cities = {
@@ -180,14 +181,27 @@ export default function ProfessionalItinerary({
 
     const normalizedTitle = title.trim();
 
-    // First try to extract city from "in [City]" pattern
+    // First try to extract city from "[City] in [Duration]" pattern (like "Oslo in Two Days")
+    const cityInDurationMatch = normalizedTitle.match(
+      /^([A-Z][a-zA-Z\u00C0-\u017F]+(?:\s+[A-Z][a-zA-Z\u00C0-\u017F]+)*)\s+in\s+(?:One|Two|Three|Four|Five|Six|Seven|\d+)\s+Days?/i
+    );
+    if (cityInDurationMatch && cityInDurationMatch[1]) {
+      const extractedCity = cityInDurationMatch[1].trim();
+      console.log(`Found city "${extractedCity}" using "City in Duration" pattern`);
+      return extractedCity;
+    }
+
+    // Then try to extract city from general "in [City]" pattern (but exclude duration words)
     const inCityMatch = normalizedTitle.match(
       /\bin\s+([A-Z][a-zA-Z\u00C0-\u017F]+(?:\s+[A-Z][a-zA-Z\u00C0-\u017F]+)*)/
     );
     if (inCityMatch && inCityMatch[1]) {
       const extractedCity = inCityMatch[1].trim();
-      console.log(`Found city "${extractedCity}" using "in City" pattern`);
-      return extractedCity;
+      // Skip if it's a duration word
+      if (!/^(?:One|Two|Three|Four|Five|Six|Seven|\d+)\s*Days?$/i.test(extractedCity)) {
+        console.log(`Found city "${extractedCity}" using "in City" pattern`);
+        return extractedCity;
+      }
     }
 
     // Then try to find exact city names or their variants
@@ -217,6 +231,7 @@ export default function ProfessionalItinerary({
     let extracted = normalizedTitle;
 
     // Remove common title patterns
+    extracted = extracted.replace(/^(?:a|an|the)?\s*(?:relaxed?|amazing?|perfect)?\s*/i, ""); // Remove articles and adjectives
     extracted = extracted.replace(/^(\d+)[-\s]?days?\s+(?:in\s+)?/i, ""); // "3 Days in" or "2-Day"
     extracted = extracted.split(/[:\-–—]/)[0].trim(); // Split on punctuation
 
@@ -226,6 +241,7 @@ export default function ProfessionalItinerary({
       /\s+(?:trip|tour|adventure|journey|experience|guide|itinerary).*$/i,
       /'s\s+.*$/i, // Possessive forms
       /\s+(?:city\s+break|weekend|getaway).*$/i,
+      /\s+(?:sightseeing|cultural).*$/i, // Remove sightseeing and cultural suffixes
       /^(?:the\s+|a\s+|an\s+)/i,
     ];
 
@@ -256,9 +272,11 @@ export default function ProfessionalItinerary({
 
     // If we still have text, use the first significant word
     const words = extracted.split(/\s+/);
+    console.log(`🔍 Words after extraction: [${words.join(', ')}]`);
     const significantWord = words.find(
       (word) => word.length > 2 && /^[A-Z]/.test(word)
     );
+    console.log(`🎯 Found significant word: "${significantWord}"`);
     if (significantWord) {
       return significantWord;
     }
@@ -266,7 +284,7 @@ export default function ProfessionalItinerary({
     return "destination";
   };
 
-  const destination = extractDestination(itinerary.title);
+  const destination = useMemo(() => extractDestination(itinerary.title), [itinerary.title]);
   const days = useMemo(
     () => itinerary?.dailyPlans || [],
     [itinerary?.dailyPlans]
@@ -305,7 +323,7 @@ export default function ProfessionalItinerary({
           // Track which activities are being loaded
           const loadingActivities = new Set<string>();
 
-          // Create a single observer for all activities
+          // Create a single observer for all activities (memoized to prevent recreation)
           const observer = new IntersectionObserver(
             (entries) => {
               entries.forEach((entry) => {
@@ -317,6 +335,12 @@ export default function ProfessionalItinerary({
                   activityImages[activityName] ||
                   loadingActivities.has(activityName)
                 ) {
+                  observer.unobserve(entry.target);
+                  return;
+                }
+
+                // Double-check after intersection to prevent race conditions
+                if (activityImages[activityName]) {
                   observer.unobserve(entry.target);
                   return;
                 }
@@ -399,7 +423,8 @@ export default function ProfessionalItinerary({
     if (destination && days.length > 0) {
       loadActivityImages();
     }
-  }, [destination, days]); // Removed activityImages from deps to prevent recreation
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [destination, days]); // Intentionally omitting activityImages to prevent infinite loop
 
   return (
     <section className="mb-24 relative">
@@ -471,7 +496,7 @@ export default function ProfessionalItinerary({
             </div>
 
             <h2 className="text-4xl md:text-5xl font-bold leading-tight bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              {days.length}-Day {destination} Adventure
+              {itinerary?.title || `${days.length}-Day ${destination} Adventure`}
             </h2>
 
             <div className="text-lg text-gray-700 mt-2 font-semibold">
