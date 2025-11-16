@@ -611,34 +611,23 @@ export default function ProfessionalItinerary({
 
                                     {/* Activity image with placeholder */}
                                     <div
-                                      className="flex-shrink-0 self-center md:self-start relative"
+                                      className="w-full md:w-auto md:flex-shrink-0 self-center md:self-start relative"
                                       data-activity={activity.name
                                         .split(/\s+A Day/i)[0]
                                         .trim()}
                                     >
-                                      <div className="w-full max-w-sm md:w-48 md:h-36 h-48 relative">
-                                        {/* Placeholder background */}
-                                        <div
-                                          className="absolute inset-0 w-full h-full rounded-lg"
-                                          style={{
-                                            backgroundColor: "#f3f4f6",
-                                            backgroundImage: `url(${ImageService.PLACEHOLDER_IMAGE})`,
-                                            backgroundSize: "cover",
-                                            filter: "blur(8px)",
-                                            transform: "scale(1.05)",
-                                          }}
-                                        />
+                                      <div className="w-full h-64 md:w-62 md:h-47 relative">
+
                                         {/* Lazy loaded image with loading states */}
                                         {activityImages[activity.name] ? (
                                           <img
                                             src={activityImages[activity.name]}
                                             alt={activity.name || "Activity"}
-                                            className="absolute inset-0 w-full h-full object-cover rounded-lg shadow-md mx-auto md:mx-0 transition-opacity duration-500 opacity-100"
+                                            className="absolute inset-0 w-full h-full object-contain mx-auto md:mx-0 transition-opacity duration-500 opacity-100"
                                             loading="lazy"
                                             onLoad={(e) => {
                                               // Add opacity transition
-                                              e.currentTarget.style.opacity =
-                                                "1";
+                                              e.currentTarget.style.opacity = "1";
                                             }}
                                             style={{ opacity: 0 }} // Start transparent
                                           />

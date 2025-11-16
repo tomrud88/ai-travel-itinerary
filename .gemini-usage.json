@@ -1,15 +1,15 @@
 {
   "minute": {
     "count": 1,
-    "startTime": 1763124317397
+    "startTime": 1763318858653
   },
   "daily": {
-    "count": 4,
-    "date": "2025-11-14"
+    "count": 2,
+    "date": "2025-11-16"
   },
   "monthly": {
-    "count": 4,
+    "count": 6,
     "month": "2025-11"
   },
-  "lastUpdated": "2025-11-14T12:45:17.401Z"
+  "lastUpdated": "2025-11-16T18:47:38.656Z"
 }
