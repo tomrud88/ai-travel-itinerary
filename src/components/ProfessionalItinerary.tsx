@@ -187,7 +187,9 @@ export default function ProfessionalItinerary({
     );
     if (cityInDurationMatch && cityInDurationMatch[1]) {
       const extractedCity = cityInDurationMatch[1].trim();
-      console.log(`Found city "${extractedCity}" using "City in Duration" pattern`);
+      console.log(
+        `Found city "${extractedCity}" using "City in Duration" pattern`
+      );
       return extractedCity;
     }
 
@@ -198,7 +200,11 @@ export default function ProfessionalItinerary({
     if (inCityMatch && inCityMatch[1]) {
       const extractedCity = inCityMatch[1].trim();
       // Skip if it's a duration word
-      if (!/^(?:One|Two|Three|Four|Five|Six|Seven|\d+)\s*Days?$/i.test(extractedCity)) {
+      if (
+        !/^(?:One|Two|Three|Four|Five|Six|Seven|\d+)\s*Days?$/i.test(
+          extractedCity
+        )
+      ) {
         console.log(`Found city "${extractedCity}" using "in City" pattern`);
         return extractedCity;
       }
@@ -231,7 +237,10 @@ export default function ProfessionalItinerary({
     let extracted = normalizedTitle;
 
     // Remove common title patterns
-    extracted = extracted.replace(/^(?:a|an|the)?\s*(?:relaxed?|amazing?|perfect)?\s*/i, ""); // Remove articles and adjectives
+    extracted = extracted.replace(
+      /^(?:a|an|the)?\s*(?:relaxed?|amazing?|perfect)?\s*/i,
+      ""
+    ); // Remove articles and adjectives
     extracted = extracted.replace(/^(\d+)[-\s]?days?\s+(?:in\s+)?/i, ""); // "3 Days in" or "2-Day"
     extracted = extracted.split(/[:\-–—]/)[0].trim(); // Split on punctuation
 
@@ -272,7 +281,7 @@ export default function ProfessionalItinerary({
 
     // If we still have text, use the first significant word
     const words = extracted.split(/\s+/);
-    console.log(`🔍 Words after extraction: [${words.join(', ')}]`);
+    console.log(`🔍 Words after extraction: [${words.join(", ")}]`);
     const significantWord = words.find(
       (word) => word.length > 2 && /^[A-Z]/.test(word)
     );
@@ -284,7 +293,10 @@ export default function ProfessionalItinerary({
     return "destination";
   };
 
-  const destination = useMemo(() => extractDestination(itinerary.title), [itinerary.title]);
+  const destination = useMemo(
+    () => extractDestination(itinerary.title),
+    [itinerary.title]
+  );
   const days = useMemo(
     () => itinerary?.dailyPlans || [],
     [itinerary?.dailyPlans]
@@ -423,7 +435,7 @@ export default function ProfessionalItinerary({
     if (destination && days.length > 0) {
       loadActivityImages();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [destination, days]); // Intentionally omitting activityImages to prevent infinite loop
 
   return (
@@ -438,27 +450,47 @@ export default function ProfessionalItinerary({
         {galleryImages.length > 0 && (
           <div className="px-8 py-6 bg-gray-50 border-b border-gray-200">
             {galleryLoading ? (
-              <div className="grid grid-cols-3 gap-4 max-w-4xl mx-auto">
-                <div className="col-span-2 aspect-[4/3] bg-gray-200 rounded-lg animate-pulse"></div>
-                <div className="grid grid-rows-2 gap-4">
+              <div className="max-w-4xl mx-auto">
+                {/* Mobile: Stack vertically */}
+                <div className="grid grid-cols-1 gap-4 min-[500px]:hidden">
+                  <div className="aspect-[4/3] bg-gray-200 rounded-lg animate-pulse"></div>
                   <div className="aspect-[4/3] bg-gray-200 rounded-lg animate-pulse"></div>
                   <div className="aspect-[4/3] bg-gray-200 rounded-lg animate-pulse"></div>
                 </div>
+                {/* Desktop: 1 large + 2 small */}
+                <div className="hidden min-[500px]:grid grid-cols-3 gap-4">
+                  <div className="col-span-2 aspect-[4/3] bg-gray-200 rounded-lg animate-pulse"></div>
+                  <div className="grid grid-rows-2 gap-4">
+                    <div className="aspect-[4/3] bg-gray-200 rounded-lg animate-pulse"></div>
+                    <div className="aspect-[4/3] bg-gray-200 rounded-lg animate-pulse"></div>
+                  </div>
+                </div>
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-4 max-w-4xl mx-auto">
-                {galleryImages[0] && (
-                  <motion.div className="col-span-2 aspect-[4/3] overflow-hidden rounded-lg shadow-lg">
-                    <img
-                      src={galleryImages[0]}
-                      alt={`${destination} main view`}
-                      className="w-full h-full object-cover"
-                    />
-                  </motion.div>
-                )}
-                <div className="grid grid-rows-2 gap-4">
+              <div className="max-w-4xl mx-auto">
+                {/* Mobile: Stack all 3 images vertically on screens < 500px */}
+                <div className="grid grid-cols-1 gap-4 min-[500px]:hidden">
+                  {galleryImages[0] && (
+                    <motion.div
+                      className="aspect-[4/3] overflow-hidden rounded-lg shadow-lg"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5 }}
+                    >
+                      <img
+                        src={galleryImages[0]}
+                        alt={`${destination} main view`}
+                        className="w-full h-full object-cover"
+                      />
+                    </motion.div>
+                  )}
                   {galleryImages[1] && (
-                    <motion.div className="aspect-[4/3] overflow-hidden rounded-lg shadow-md">
+                    <motion.div
+                      className="aspect-[4/3] overflow-hidden rounded-lg shadow-md"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5, delay: 0.1 }}
+                    >
                       <img
                         src={galleryImages[1]}
                         alt={`${destination} view 2`}
@@ -467,7 +499,12 @@ export default function ProfessionalItinerary({
                     </motion.div>
                   )}
                   {galleryImages[2] && (
-                    <motion.div className="aspect-[4/3] overflow-hidden rounded-lg shadow-md">
+                    <motion.div
+                      className="aspect-[4/3] overflow-hidden rounded-lg shadow-md"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5, delay: 0.2 }}
+                    >
                       <img
                         src={galleryImages[2]}
                         alt={`${destination} view 3`}
@@ -475,6 +512,39 @@ export default function ProfessionalItinerary({
                       />
                     </motion.div>
                   )}
+                </div>
+
+                {/* Desktop: 1 large + 2 small layout for screens >= 500px */}
+                <div className="hidden min-[500px]:grid grid-cols-3 gap-4">
+                  {galleryImages[0] && (
+                    <motion.div className="col-span-2 aspect-[4/3] overflow-hidden rounded-lg shadow-lg">
+                      <img
+                        src={galleryImages[0]}
+                        alt={`${destination} main view`}
+                        className="w-full h-full object-cover"
+                      />
+                    </motion.div>
+                  )}
+                  <div className="grid grid-rows-2 gap-4">
+                    {galleryImages[1] && (
+                      <motion.div className="aspect-[4/3] overflow-hidden rounded-lg shadow-md">
+                        <img
+                          src={galleryImages[1]}
+                          alt={`${destination} view 2`}
+                          className="w-full h-full object-cover"
+                        />
+                      </motion.div>
+                    )}
+                    {galleryImages[2] && (
+                      <motion.div className="aspect-[4/3] overflow-hidden rounded-lg shadow-md">
+                        <img
+                          src={galleryImages[2]}
+                          alt={`${destination} view 3`}
+                          className="w-full h-full object-cover"
+                        />
+                      </motion.div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -496,7 +566,8 @@ export default function ProfessionalItinerary({
             </div>
 
             <h2 className="text-4xl md:text-5xl font-bold leading-tight bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              {itinerary?.title || `${days.length}-Day ${destination} Adventure`}
+              {itinerary?.title ||
+                `${days.length}-Day ${destination} Adventure`}
             </h2>
 
             <div className="text-lg text-gray-700 mt-2 font-semibold">
@@ -596,7 +667,7 @@ export default function ProfessionalItinerary({
                                   className="p-6 rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
                                 >
                                   {/* Mobile Layout: Stack vertically */}
-                                  <div className="flex flex-col md:flex-row gap-4">
+                                  <div className="flex flex-col md:flex-row gap-3 sm:gap-4">
                                     {/* Time always at top on mobile, left on desktop */}
                                     <div className="flex-shrink-0 text-center md:text-left md:w-20">
                                       <div className="text-blue-600 font-bold text-lg">
@@ -616,18 +687,18 @@ export default function ProfessionalItinerary({
                                         .split(/\s+A Day/i)[0]
                                         .trim()}
                                     >
-                                      <div className="w-full h-64 md:w-62 md:h-47 relative">
-
+                                      <div className="w-full h-40 sm:h-48 md:w-62 md:h-47 relative">
                                         {/* Lazy loaded image with loading states */}
                                         {activityImages[activity.name] ? (
                                           <img
                                             src={activityImages[activity.name]}
                                             alt={activity.name || "Activity"}
-                                            className="absolute inset-0 w-full h-full object-contain mx-auto md:mx-0 transition-opacity duration-500 opacity-100"
+                                            className="absolute inset-0 w-full h-full object-cover sm:object-contain md:object-contain mx-auto md:mx-0 transition-opacity duration-500 opacity-100 rounded-lg"
                                             loading="lazy"
                                             onLoad={(e) => {
                                               // Add opacity transition
-                                              e.currentTarget.style.opacity = "1";
+                                              e.currentTarget.style.opacity =
+                                                "1";
                                             }}
                                             style={{ opacity: 0 }} // Start transparent
                                           />
@@ -640,7 +711,7 @@ export default function ProfessionalItinerary({
 
                                     {/* Text content */}
                                     <div className="flex-grow">
-                                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-3">
+                                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2 sm:mb-3">
                                         <h5 className="font-bold text-gray-900 text-lg">
                                           {activity.name}
                                         </h5>

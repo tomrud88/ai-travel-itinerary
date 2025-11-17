@@ -87,7 +87,8 @@ export class ImageService {
     // Check if we made a recent request for this query to prevent spam
     const now = Date.now();
     const lastRequestTime = this.requestCooldown.get(cacheKey) || 0;
-    if (now - lastRequestTime < 500) { // 500ms cooldown
+    if (now - lastRequestTime < 500) {
+      // 500ms cooldown
       console.log(`⏰ Cooldown active for: "${searchQuery}"`);
       return this.pendingRequests.get(cacheKey) || null;
     }
@@ -141,6 +142,7 @@ export class ImageService {
         activityName: query,
         activityAddress: "",
         limit: 1,
+        orientation: "horizontal", // Prefer horizontal/landscape images
       }),
     });
 
@@ -241,6 +243,7 @@ export class ImageService {
         body: JSON.stringify({
           activityName: finalQuery, // Use the enhanced query
           limit: 3, // Request only 3 images for the gallery
+          orientation: "horizontal", // Prefer horizontal/panoramic images
         }),
       });
 

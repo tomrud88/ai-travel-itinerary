@@ -298,19 +298,56 @@ class FreepikRateLimit {
 
 export async function searchFreepikImages(
   query: string,
-  limit: number = 3
+  limit: number = 3,
+  orientation?: string
 ): Promise<ImageUrls[]> {
+  console.log(`🎯 searchFreepikImages called with:`, {
+    query,
+    limit,
+    orientation,
+  });
+
   // Handle special cases for city names
   if (query.toLowerCase() === "nice" || query.toLowerCase() === "nice city") {
     query = "Nice France tourist attractions";
   }
-  const cacheKey = `${query}-${limit}`;
+  // Create cache key with orientation
+  const cacheKey = `${query}-${limit}-${orientation || "any"}`;
 
-  // Check cache first
-  const cached = imageCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-    console.log(`🎯 Using cached images for: "${query}"`);
-    return cached.data;
+  // For restaurant queries, add a cache buster to ensure fresh results with orientation
+  const isRestaurantQuery =
+    query.toLowerCase().includes("dinner") ||
+    query.toLowerCase().includes("lunch") ||
+    query.toLowerCase().includes("restaurant") ||
+    query.toLowerCase().includes("osteria");
+
+  // Check cache first (skip cache for restaurant queries to get fresh horizontal images)
+  if (!isRestaurantQuery) {
+    const cached = imageCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      console.log(`🎯 Using cached images for: "${query}"`);
+      return cached.data;
+    }
+  } else {
+    console.log(
+      `🍽️ Bypassing cache for restaurant query to get fresh horizontal images: "${query}"`
+    );
+    // Also clear any existing cache entries for this restaurant query
+    const keysToRemove: string[] = [];
+    for (const [key] of imageCache.entries()) {
+      if (
+        key.toLowerCase().includes(query.toLowerCase()) ||
+        key.toLowerCase().includes("lunch") ||
+        key.toLowerCase().includes("dinner") ||
+        key.toLowerCase().includes("restaurant")
+      ) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((key) => {
+      imageCache.delete(key);
+      console.log(`🗑️ Cleared cache for: "${key}"`);
+    });
   }
 
   // Check if there's already a pending request for this query
@@ -323,7 +360,12 @@ export async function searchFreepikImages(
   }
 
   // Create new request
-  const requestPromise = makeFreepikRequest(query, limit, cacheKey);
+  const requestPromise = makeFreepikRequest(
+    query,
+    limit,
+    cacheKey,
+    orientation
+  );
   pendingRequests.set(cacheKey, requestPromise);
 
   try {
@@ -338,7 +380,8 @@ export async function searchFreepikImages(
 async function makeFreepikRequest(
   query: string,
   limit: number,
-  cacheKey: string
+  cacheKey: string,
+  orientation?: string
 ): Promise<ImageUrls[]> {
   // Clean up query by removing descriptive and unnecessary words first
   query = query
@@ -369,6 +412,11 @@ async function makeFreepikRequest(
       `🔍 [NEW REQUEST] Server-side Freepik search for: "${query}" (limit: ${limit})`
     );
     console.log(`🔑 Using API key: ${FREEPIK_API_KEY.substring(0, 10)}...`);
+    if (orientation) {
+      console.log(`📐 Requesting ${orientation} orientation images`);
+    } else {
+      console.log(`📐 No orientation parameter provided`);
+    }
 
     // Extract location name and optimize query
     function optimizeLocationQuery(searchQuery: string): string {
@@ -451,8 +499,26 @@ async function makeFreepikRequest(
       .replace(/\s+/g, " ")
       .trim();
 
+    // Enhance restaurant queries BEFORE creating search params
+    if (
+      searchTerm.toLowerCase().includes("dinner") ||
+      searchTerm.toLowerCase().includes("lunch") ||
+      searchTerm.toLowerCase().includes("restaurant") ||
+      searchTerm.toLowerCase().includes("tavern") ||
+      searchTerm.toLowerCase().includes("bar")
+    ) {
+      // Replace specific problematic keywords and add horizontal layout terms
+      searchTerm = searchTerm.replace(/lunch at|dinner at/gi, "");
+      searchTerm =
+        `${searchTerm.trim()} restaurant interior dining area wide horizontal view -vertical-shot`.trim();
+      console.log(`🍽️ Enhanced restaurant search: "${searchTerm}"`);
+    }
+
+    // Final search term after all enhancements
+    let finalSearchTerm = searchTerm;
+
     const searchParams = new URLSearchParams({
-      term: searchTerm,
+      term: finalSearchTerm,
       limit: limit.toString(),
       page: "1",
       order: "relevance",
@@ -460,8 +526,27 @@ async function makeFreepikRequest(
       "filters[license][freemium]": "1", // Include freemium content
     });
 
+    // Add orientation filter if specified
+    if (orientation === "horizontal") {
+      searchParams.set("filters[orientation][horizontal]", "1");
+      console.log(
+        `🔄 Applied horizontal orientation filter for: "${finalSearchTerm}"`
+      );
+    } else if (orientation === "vertical") {
+      searchParams.set("filters[orientation][vertical]", "1");
+      console.log(
+        `🔄 Applied vertical orientation filter for: "${finalSearchTerm}"`
+      );
+    } else if (orientation === "panoramic") {
+      searchParams.set("filters[orientation][panoramic]", "1");
+      console.log(
+        `🔄 Applied panoramic orientation filter for: "${finalSearchTerm}"`
+      );
+    }
+
     const fullUrl = `https://api.freepik.com/v1/resources?${searchParams}`;
     console.log(`🌐 Making request to: ${fullUrl}`);
+    console.log(`🔍 Final search term used: "${finalSearchTerm}"`);
 
     const fetchPromise = fetch(fullUrl, {
       headers: {
@@ -487,7 +572,12 @@ async function makeFreepikRequest(
       // Let's try a much simpler query if this fails
       if (query !== "valencia") {
         console.log(`🔄 Retrying with simple query: "valencia"`);
-        return await makeFreepikRequest("valencia", limit, "valencia-fallback");
+        return await makeFreepikRequest(
+          "valencia",
+          limit,
+          "valencia-fallback",
+          orientation
+        );
       }
 
       return [];

@@ -24,6 +24,7 @@ export function apiPlugin(): Plugin {
                 activityName,
                 activityAddress,
                 limit = 3,
+                orientation,
               } = JSON.parse(body);
 
               // Support both old format (query) and new format (activityName + activityAddress)
@@ -58,7 +59,11 @@ export function apiPlugin(): Plugin {
                 return;
               }
 
-              const images = await searchFreepikImages(optimizedQuery, limit);
+              const images = await searchFreepikImages(
+                optimizedQuery,
+                limit,
+                orientation
+              );
 
               res.setHeader("Content-Type", "application/json");
               res.setHeader("Access-Control-Allow-Origin", "*");
@@ -146,11 +151,13 @@ export function apiPlugin(): Plugin {
                   const remainingNeeded = limit - allImages.length;
                   const images = await searchFreepikImages(
                     term,
-                    Math.min(remainingNeeded, 5)
+                    Math.min(remainingNeeded, 5),
+                    "horizontal" // Use horizontal orientation for city galleries
                   );
 
-                  for (const imageUrl of images) {
+                  for (const imageObj of images) {
                     if (allImages.length >= limit) break;
+                    const imageUrl = imageObj.url;
                     if (!usedUrls.has(imageUrl)) {
                       allImages.push(imageUrl);
                       usedUrls.add(imageUrl);
