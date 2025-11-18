@@ -1,7 +1,6 @@
-const fs = require("fs");
-const path = require("path");
+const { kv } = require("@vercel/kv");
 
-const USAGE_FILE_PATH = path.join(process.cwd(), ".gemini-usage.json");
+const GEMINI_USAGE_KEY = "gemini-usage-global";
 
 class GeminiUsageTracker {
   static getDefaultUsage() {
@@ -18,18 +17,18 @@ class GeminiUsageTracker {
     };
   }
 
-  static loadUsage() {
+  static async loadUsage() {
     try {
-      if (fs.existsSync(USAGE_FILE_PATH)) {
-        const data = fs.readFileSync(USAGE_FILE_PATH, "utf8");
-        const usage = JSON.parse(data);
+      console.log("📡 Loading Gemini usage from Vercel KV (global storage)...");
+      const usage = await kv.get(GEMINI_USAGE_KEY);
 
+      if (usage) {
         // Only reset minute counter if more than 1 minute has passed
         if (Date.now() - usage.minute.startTime > 60000) {
           usage.minute = { count: 0, startTime: Date.now() };
         }
 
-        console.log("📊 Loaded Gemini usage from file (no auto-reset):", {
+        console.log("📊 Loaded Gemini usage from Vercel KV:", {
           monthly: usage.monthly.count,
           daily: usage.daily.count,
           date: usage.daily.date,
@@ -38,20 +37,26 @@ class GeminiUsageTracker {
 
         return usage;
       }
+
+      console.log("📊 No existing Gemini usage in KV, creating fresh data");
     } catch (error) {
-      console.error("Error loading Gemini usage:", error);
+      console.error("Error loading Gemini usage from KV:", error);
     }
 
     return this.getDefaultUsage();
   }
 
-  static saveUsage(usage) {
+  static async saveUsage(usage) {
     try {
       usage.lastUpdated = new Date().toISOString();
-      fs.writeFileSync(USAGE_FILE_PATH, JSON.stringify(usage, null, 2));
-      console.log("💾 Gemini usage saved to file:", usage);
+      await kv.set(GEMINI_USAGE_KEY, usage);
+      console.log("💾 Gemini usage saved to Vercel KV (persistent):", {
+        monthly: usage.monthly.count,
+        daily: usage.daily.count,
+        lastUpdated: usage.lastUpdated,
+      });
     } catch (error) {
-      console.error("Error saving Gemini usage:", error);
+      console.error("Error saving Gemini usage to KV:", error);
     }
   }
 }
@@ -68,8 +73,41 @@ module.exports = async function handler(req, res) {
 
   try {
     if (req.method === "GET") {
-      // Return current usage
-      const usage = GeminiUsageTracker.loadUsage();
+      // Return current usage with auto-reset logic
+      let usage = await GeminiUsageTracker.loadUsage();
+
+      // Reset logic for new day/month
+      const now = new Date();
+      const today = now.toISOString().split("T")[0];
+      const currentMonth = `${now.getFullYear()}-${String(
+        now.getMonth() + 1
+      ).padStart(2, "0")}`;
+      let hasChanges = false;
+
+      // Reset daily if it's a new day
+      if (usage.daily.date !== today) {
+        console.log(
+          `🔄 Resetting daily Gemini counter (${usage.daily.date} → ${today})`
+        );
+        usage.daily = { count: 0, date: today };
+        hasChanges = true;
+      }
+
+      // Reset monthly if it's a new month
+      if (usage.monthly.month !== currentMonth) {
+        console.log(
+          `🔄 Resetting monthly Gemini counter (${usage.monthly.month} → ${currentMonth})`
+        );
+        usage.monthly = { count: 0, month: currentMonth };
+        usage.daily = { count: 0, date: today };
+        hasChanges = true;
+      }
+
+      // Save changes if any resets occurred
+      if (hasChanges) {
+        await GeminiUsageTracker.saveUsage(usage);
+      }
+
       res.setHeader("Content-Type", "application/json");
       res.statusCode = 200;
       res.end(JSON.stringify(usage));
@@ -83,10 +121,10 @@ module.exports = async function handler(req, res) {
         body += chunk.toString();
       });
 
-      req.on("end", () => {
+      req.on("end", async () => {
         try {
           const newUsage = JSON.parse(body);
-          GeminiUsageTracker.saveUsage(newUsage);
+          await GeminiUsageTracker.saveUsage(newUsage);
 
           res.setHeader("Content-Type", "application/json");
           res.statusCode = 200;

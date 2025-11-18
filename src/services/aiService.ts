@@ -13,7 +13,7 @@ class GeminiRateLimit {
   private static readonly MAX_REQUESTS_PER_MINUTE = 15; // Gemini free tier: 15 RPM
   private static readonly MAX_DAILY_REQUESTS = 500; // Updated: 500 requests per day
   private static readonly MAX_MONTHLY_REQUESTS = 15000; // Updated: 15,000 requests/month
-  private static readonly MIN_INTERVAL = 4000; // 4 seconds between requests for 15 RPM
+  private static readonly MIN_INTERVAL = 2000; // 2 seconds between requests (safer for 15 RPM limit)
   private static isInitialized = false;
 
   /**
@@ -122,8 +122,15 @@ class GeminiRateLimit {
           daily: this.dailyRequestCount,
           minute: this.requestCount,
         });
+        // Verify the save by reading back the data
+        await new Promise((resolve) => setTimeout(resolve, 100)); // Small delay
+        console.log("🔍 Verifying save operation completed...");
       } else {
-        console.error("❌ Failed to save Gemini usage to server");
+        console.error(
+          "❌ Failed to save Gemini usage to server - Response not OK:",
+          response.status
+        );
+        throw new Error(`Failed to save usage: ${response.status}`);
       }
     } catch (error) {
       console.error("❌ Error saving Gemini usage to server:", error);
@@ -142,7 +149,7 @@ class GeminiRateLimit {
       currentMonth,
       lastResetMonth: this.lastResetMonth,
       currentDate, // Now shows full date string
-      lastResetDate: this.lastResetDate, // Now shows full date string  
+      lastResetDate: this.lastResetDate, // Now shows full date string
       monthlyCount: this.monthlyRequestCount,
       dailyCount: this.dailyRequestCount,
     });
@@ -203,21 +210,47 @@ class GeminiRateLimit {
 
     // Enforce minimum interval between requests
     const timeSinceLastRequest = now - this.lastRequestTime;
+    console.log(
+      `⏱️ Time since last request: ${timeSinceLastRequest}ms (minimum: ${this.MIN_INTERVAL}ms)`
+    );
+
     if (timeSinceLastRequest < this.MIN_INTERVAL) {
       const waitTime = this.MIN_INTERVAL - timeSinceLastRequest;
       console.log(
         `⏳ Gemini rate limiting: waiting ${waitTime}ms before API call`
       );
       await new Promise((resolve) => setTimeout(resolve, waitTime));
+      console.log(`✅ Rate limiting wait completed, proceeding with API call`);
+    } else {
+      console.log(`✅ No rate limiting needed, proceeding immediately`);
     }
 
     this.lastRequestTime = Date.now();
+
+    console.log(`📊 Incrementing usage counters:`, {
+      before: {
+        daily: this.dailyRequestCount,
+        monthly: this.monthlyRequestCount,
+      },
+    });
+
     this.requestCount++;
     this.dailyRequestCount++;
     this.monthlyRequestCount++;
 
-    // Save updated counters to secure storage
+    console.log(`📊 Updated usage counters:`, {
+      after: {
+        daily: this.dailyRequestCount,
+        monthly: this.monthlyRequestCount,
+      },
+    });
+
+    // Save updated counters to secure storage - ensure completion before proceeding
+    console.log("💾 Saving usage counters to server before API call...");
     await this.saveToStorage();
+    console.log(
+      "✅ Usage counters saved successfully, proceeding with API call"
+    );
 
     const remainingMonthly =
       this.MAX_MONTHLY_REQUESTS - this.monthlyRequestCount;

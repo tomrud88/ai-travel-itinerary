@@ -1,5 +1,9 @@
 // Vercel Serverless Function for Freepik Image Search
 
+const { kv } = require("@vercel/kv");
+
+const FREEPIK_USAGE_KEY = "freepik-usage-global";
+
 // Rate limiting for Freepik API - Budget: Max 5 EUR/month
 class FreepikRateLimit {
   static lastRequestTime = 0;
@@ -12,8 +16,100 @@ class FreepikRateLimit {
   static MAX_DAILY_REQUESTS = 300;
   static MAX_MONTHLY_REQUESTS = 3000;
   static MIN_INTERVAL = 500;
+  static isInitialized = false;
+
+  static async loadUsageFromKV() {
+    try {
+      console.log(
+        "📡 Loading Freepik usage from Vercel KV (global storage)..."
+      );
+      const usage = await kv.get(FREEPIK_USAGE_KEY);
+
+      if (usage) {
+        const now = new Date();
+
+        // Load data if it's from the same month and day
+        if (
+          usage.month === now.getMonth() &&
+          usage.year === now.getFullYear()
+        ) {
+          this.monthlyRequestCount = usage.monthlyRequestCount || 0;
+          this.lastResetMonth = usage.month;
+
+          if (usage.date === now.getDate()) {
+            this.dailyRequestCount = usage.dailyRequestCount || 0;
+            this.lastResetDate = usage.date;
+          } else {
+            // New day, reset daily counter but keep monthly
+            this.dailyRequestCount = 0;
+            this.lastResetDate = now.getDate();
+          }
+        } else {
+          // New month, reset all counters
+          this.monthlyRequestCount = 0;
+          this.dailyRequestCount = 0;
+          this.lastResetMonth = now.getMonth();
+          this.lastResetDate = now.getDate();
+        }
+
+        console.log("📊 Loaded Freepik usage from Vercel KV:", {
+          monthly: this.monthlyRequestCount,
+          daily: this.dailyRequestCount,
+        });
+      } else {
+        console.log("📊 No existing Freepik usage in KV, starting fresh");
+      }
+    } catch (error) {
+      console.error("Error loading Freepik usage from KV:", error);
+    }
+  }
+
+  static async saveUsageToKV() {
+    try {
+      const now = new Date();
+      const data = {
+        monthlyRequestCount: this.monthlyRequestCount,
+        dailyRequestCount: this.dailyRequestCount,
+        month: now.getMonth(),
+        year: now.getFullYear(),
+        date: now.getDate(),
+        lastUpdated: now.toISOString(),
+      };
+
+      console.log(`📡 Attempting to save Freepik usage to KV:`, data);
+
+      const result = await kv.set(FREEPIK_USAGE_KEY, data);
+
+      console.log("💾 Freepik usage saved to Vercel KV (persistent):", {
+        monthly: data.monthlyRequestCount,
+        daily: data.dailyRequestCount,
+        lastUpdated: data.lastUpdated,
+        kvResult: result,
+      });
+
+      // Verify the save worked by immediately reading it back
+      const verification = await kv.get(FREEPIK_USAGE_KEY);
+      console.log(`✅ KV save verification:`, {
+        saved: data.monthlyRequestCount,
+        retrieved: verification?.monthlyRequestCount,
+      });
+    } catch (error) {
+      console.error("❌ CRITICAL ERROR saving Freepik usage to KV:", {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+      });
+      throw error; // Re-throw to ensure calling code knows about the failure
+    }
+  }
 
   static async enforceLimit() {
+    // Initialize from KV on first call
+    if (!this.isInitialized) {
+      await this.loadUsageFromKV();
+      this.isInitialized = true;
+    }
+
     const now = Date.now();
     const currentDate = new Date().getDate();
     const currentMonth = new Date().getMonth();
@@ -76,6 +172,24 @@ class FreepikRateLimit {
     this.requestCount++;
     this.dailyRequestCount++;
     this.monthlyRequestCount++;
+
+    console.log(`📊 Freepik counters incremented:`, {
+      daily: this.dailyRequestCount,
+      monthly: this.monthlyRequestCount,
+      requestCount: this.requestCount,
+    });
+
+    // Save updated counters to KV
+    try {
+      await this.saveUsageToKV();
+      console.log(`✅ Freepik usage successfully saved to KV`);
+    } catch (kvError) {
+      console.error(
+        `❌ CRITICAL: Failed to save Freepik usage to KV:`,
+        kvError
+      );
+      // Still allow the request to continue, but log the error prominently
+    }
 
     console.log(`📊 Freepik Usage Tracking:`);
     console.log(

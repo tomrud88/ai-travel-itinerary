@@ -19,6 +19,11 @@ dist-ssr
 .env.test.local
 .env.production.local
 
+# Usage tracking files (deprecated - now using Vercel KV)
+*.usage.json
+.gemini-usage.json
+.freepik-usage.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -1,16 +1,39 @@
 // Vercel Serverless Function for Freepik Budget Status
 
-let budgetData = {
-  monthlyUsed: 0,
-  monthlyLimit: 3000,
-  dailyUsed: 0,
-  dailyLimit: 300,
-  estimatedCost: 0,
-  lastReset: new Date().toISOString().split("T")[0],
-  lastMonthReset: new Date().getMonth(),
-};
+const { kv } = require("@vercel/kv");
 
-export default async function handler(req, res) {
+const FREEPIK_USAGE_KEY = "freepik-usage-global";
+
+async function loadFreepikUsage() {
+  try {
+    console.log("📡 Loading Freepik usage from Vercel KV for budget status...");
+    const usage = await kv.get(FREEPIK_USAGE_KEY);
+
+    if (usage) {
+      console.log("📊 Found Freepik usage data in KV:", {
+        monthly: usage.monthlyRequestCount,
+        daily: usage.dailyRequestCount,
+      });
+      return usage;
+    }
+
+    console.log("📊 No Freepik usage data in KV, returning defaults");
+  } catch (error) {
+    console.error("Error loading Freepik usage from KV:", error);
+  }
+
+  // Default data if no data exists in KV
+  return {
+    monthlyRequestCount: 0,
+    dailyRequestCount: 0,
+    month: new Date().getMonth(),
+    year: new Date().getFullYear(),
+    date: new Date().getDate(),
+    lastUpdated: new Date().toISOString(),
+  };
+}
+
+module.exports = async function handler(req, res) {
   // CORS headers
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -21,37 +44,39 @@ export default async function handler(req, res) {
   }
 
   try {
+    const usage = await loadFreepikUsage();
     const now = new Date();
-    const today = now.toISOString().split("T")[0];
     const currentMonth = now.getMonth();
 
-    // Reset daily counter if it's a new day
-    if (budgetData.lastReset !== today) {
-      budgetData.dailyUsed = 0;
-      budgetData.lastReset = today;
+    const currentDate = now.getDate();
+
+    // Reset daily counter if it's a new day (similar to Gemini logic)
+    if (currentDate !== usage.date) {
+      usage.dailyRequestCount = 0;
+      usage.date = currentDate;
     }
 
     // Reset monthly counter if it's a new month
-    if (budgetData.lastMonthReset !== currentMonth) {
-      budgetData.monthlyUsed = 0;
-      budgetData.dailyUsed = 0;
-      budgetData.estimatedCost = 0;
-      budgetData.lastMonthReset = currentMonth;
-      budgetData.lastReset = today;
+    if (currentMonth !== usage.month) {
+      usage.monthlyRequestCount = 0;
+      usage.dailyRequestCount = 0;
+      usage.month = currentMonth;
+      usage.year = now.getFullYear();
+      usage.date = currentDate;
     }
 
     if (req.method === "GET") {
-      return res.status(200).json(budgetData);
-    }
+      // Return usage statistics in expected format
+      const budgetStatus = {
+        monthlyUsed: usage.monthlyRequestCount,
+        monthlyLimit: 3000,
+        dailyUsed: usage.dailyRequestCount,
+        dailyLimit: 300,
+        estimatedCost: (usage.monthlyRequestCount / 3000) * 5, // 5 EUR budget
+        percentageUsed: (usage.monthlyRequestCount / 3000) * 100,
+      };
 
-    if (req.method === "POST") {
-      // Update budget data (when an API call is made)
-      budgetData.monthlyUsed += 1;
-      budgetData.dailyUsed += 1;
-      budgetData.estimatedCost =
-        (budgetData.monthlyUsed / budgetData.monthlyLimit) * 5; // 5 EUR budget
-
-      return res.status(200).json({ success: true, newUsage: budgetData });
+      return res.status(200).json(budgetStatus);
     }
 
     return res.status(405).json({ error: "Method not allowed" });
@@ -59,4 +84,4 @@ export default async function handler(req, res) {
     console.error("Budget Status API Error:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
-}
+};
