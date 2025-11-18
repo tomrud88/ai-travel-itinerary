@@ -1,17 +1,10 @@
-import * as fs from "fs";
-import * as path from "path";
-
-interface GeminiUsage {
-  minute: { count: number; startTime: number };
-  daily: { count: number; date: string };
-  monthly: { count: number; month: string };
-  lastUpdated: string;
-}
+const fs = require("fs");
+const path = require("path");
 
 const USAGE_FILE_PATH = path.join(process.cwd(), ".gemini-usage.json");
 
 class GeminiUsageTracker {
-  private static getDefaultUsage(): GeminiUsage {
+  static getDefaultUsage() {
     return {
       minute: { count: 0, startTime: Date.now() },
       daily: { count: 0, date: new Date().toISOString().split("T")[0] },
@@ -25,34 +18,23 @@ class GeminiUsageTracker {
     };
   }
 
-  static loadUsage(): GeminiUsage {
+  static loadUsage() {
     try {
       if (fs.existsSync(USAGE_FILE_PATH)) {
         const data = fs.readFileSync(USAGE_FILE_PATH, "utf8");
-        const usage = JSON.parse(data) as GeminiUsage;
+        const usage = JSON.parse(data);
 
-        // Reset counters if needed
-        const now = new Date();
-        const today = now.toISOString().split("T")[0];
-        const currentMonth = `${now.getFullYear()}-${String(
-          now.getMonth() + 1
-        ).padStart(2, "0")}`;
-
-        // Reset daily if it's a new day
-        if (usage.daily.date !== today) {
-          usage.daily = { count: 0, date: today };
-        }
-
-        // Reset monthly if it's a new month
-        if (usage.monthly.month !== currentMonth) {
-          usage.monthly = { count: 0, month: currentMonth };
-          usage.daily = { count: 0, date: today }; // Also reset daily for new month
-        }
-
-        // Reset minute counter if more than 1 minute has passed
+        // Only reset minute counter if more than 1 minute has passed
         if (Date.now() - usage.minute.startTime > 60000) {
           usage.minute = { count: 0, startTime: Date.now() };
         }
+
+        console.log("📊 Loaded Gemini usage from file (no auto-reset):", {
+          monthly: usage.monthly.count,
+          daily: usage.daily.count,
+          date: usage.daily.date,
+          month: usage.monthly.month,
+        });
 
         return usage;
       }
@@ -63,7 +45,7 @@ class GeminiUsageTracker {
     return this.getDefaultUsage();
   }
 
-  static saveUsage(usage: GeminiUsage): void {
+  static saveUsage(usage) {
     try {
       usage.lastUpdated = new Date().toISOString();
       fs.writeFileSync(USAGE_FILE_PATH, JSON.stringify(usage, null, 2));
@@ -74,7 +56,16 @@ class GeminiUsageTracker {
   }
 }
 
-export default async function handler(req: any, res: any) {
+module.exports = async function handler(req, res) {
+  // CORS headers
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
   try {
     if (req.method === "GET") {
       // Return current usage
@@ -88,13 +79,13 @@ export default async function handler(req: any, res: any) {
     if (req.method === "POST") {
       // Read POST body
       let body = "";
-      req.on("data", (chunk: Buffer) => {
+      req.on("data", (chunk) => {
         body += chunk.toString();
       });
 
       req.on("end", () => {
         try {
-          const newUsage = JSON.parse(body) as GeminiUsage;
+          const newUsage = JSON.parse(body);
           GeminiUsageTracker.saveUsage(newUsage);
 
           res.setHeader("Content-Type", "application/json");
@@ -117,4 +108,4 @@ export default async function handler(req: any, res: any) {
     res.statusCode = 500;
     res.end(JSON.stringify({ error: "Internal server error" }));
   }
-}
+};

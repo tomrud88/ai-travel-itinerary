@@ -131,10 +131,20 @@ function App() {
       if (result && result.itinerary) {
         console.log("📱 App received itinerary:", result.itinerary);
         console.log(
-          "📱 First activity name in App:",
-          result.itinerary.dailyPlans?.[0]?.activities?.[0]?.name
+          "First activity name in App:",
+          result.itinerary.dailyPlans[0]?.activities[0]?.name
         );
-        setGeneratedItinerary(result.itinerary);
+
+        // Add original destination to the itinerary for proper image loading
+        const itineraryWithDestination = {
+          ...result.itinerary,
+          originalDestination: request.destinations[0],
+        };
+
+        console.log(
+          `🏙️ Original destination from form: "${request.destinations[0]}"`
+        );
+        setGeneratedItinerary(itineraryWithDestination);
       } else {
         console.error("No result or itinerary from AI service");
         setApiError("Failed to generate itinerary. Please try again.");
@@ -349,6 +359,7 @@ function App() {
         {generatedItinerary && (
           <ProfessionalItinerary
             itinerary={generatedItinerary}
+            originalDestination={generatedItinerary.originalDestination}
             onGenerateNew={() => setGeneratedItinerary(null)}
           />
         )}

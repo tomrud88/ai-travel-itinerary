@@ -23,6 +23,7 @@ interface Itinerary {
 
 interface ProfessionalItineraryProps {
   itinerary: Itinerary;
+  originalDestination?: string; // Original city name from form input
   onGenerateNew: () => void;
 }
 
@@ -45,6 +46,7 @@ interface Day {
 
 export default function ProfessionalItinerary({
   itinerary,
+  originalDestination,
   onGenerateNew,
 }: ProfessionalItineraryProps) {
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
@@ -177,6 +179,7 @@ export default function ProfessionalItinerary({
       Oslo: ["Oslo", "OSL"],
       Athens: ["Athens", "ATH"],
       Istanbul: ["Istanbul", "IST"],
+      Monterrey: ["Monterrey", "MTY"],
     };
 
     const normalizedTitle = title.trim();
@@ -279,11 +282,61 @@ export default function ProfessionalItinerary({
       }
     }
 
-    // If we still have text, use the first significant word
+    // If we still have text, use the first significant word (excluding common title words)
     const words = extracted.split(/\s+/);
     console.log(`🔍 Words after extraction: [${words.join(", ")}]`);
+
+    // Exclude common words that appear in titles but aren't cities
+    const excludeWords = [
+      "One",
+      "Two",
+      "Three",
+      "Four",
+      "Five",
+      "Six",
+      "Seven",
+      "Eight",
+      "Nine",
+      "Ten",
+      "Day",
+      "Days",
+      "of",
+      "in",
+      "at",
+      "the",
+      "The",
+      "A",
+      "An",
+      "Authentic",
+      "Amazing",
+      "Perfect",
+      "Ultimate",
+      "Best",
+      "Top",
+      "Great",
+      "Culture",
+      "Cultural",
+      "Cuisine",
+      "Culinary",
+      "Charm",
+      "Charming",
+      "History",
+      "Historic",
+      "Heritage",
+      "Traditional",
+      "Local",
+      "Experience",
+      "Adventure",
+      "Journey",
+      "Trip",
+      "Tour",
+      "Guide",
+      "Exploration",
+    ];
+
     const significantWord = words.find(
-      (word) => word.length > 2 && /^[A-Z]/.test(word)
+      (word) =>
+        word.length > 2 && /^[A-Z]/.test(word) && !excludeWords.includes(word)
     );
     console.log(`🎯 Found significant word: "${significantWord}"`);
     if (significantWord) {
@@ -293,10 +346,22 @@ export default function ProfessionalItinerary({
     return "destination";
   };
 
-  const destination = useMemo(
-    () => extractDestination(itinerary.title),
-    [itinerary.title]
-  );
+  const destination = useMemo(() => {
+    // Use original destination from form if available, otherwise try extraction
+    if (originalDestination && originalDestination.trim()) {
+      console.log(
+        `🎯 Using original destination from form: "${originalDestination}"`
+      );
+      return originalDestination.trim();
+    }
+
+    // Fallback to extraction from title
+    const extracted = extractDestination(itinerary.title);
+    console.log(
+      `⚠️ No original destination provided, extracted: "${extracted}"`
+    );
+    return extracted;
+  }, [originalDestination, itinerary.title]);
   const days = useMemo(
     () => itinerary?.dailyPlans || [],
     [itinerary?.dailyPlans]

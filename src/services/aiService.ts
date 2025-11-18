@@ -8,7 +8,7 @@ class GeminiRateLimit {
   private static requestCount = 0;
   private static dailyRequestCount = 0;
   private static monthlyRequestCount = 0;
-  private static lastResetDate = new Date().getDate();
+  private static lastResetDate = new Date().toISOString().split("T")[0]; // Store as full date string
   private static lastResetMonth = new Date().getMonth();
   private static readonly MAX_REQUESTS_PER_MINUTE = 15; // Gemini free tier: 15 RPM
   private static readonly MAX_DAILY_REQUESTS = 500; // Updated: 500 requests per day
@@ -35,12 +35,11 @@ class GeminiRateLimit {
         this.requestCount = serverUsage.minute.count || 0;
         this.lastRequestTime = serverUsage.minute.startTime || 0;
 
-        // Parse stored date info
+        // Parse stored date info - store full date string for accurate comparison
         if (serverUsage.daily.date) {
-          const storedDate = new Date(serverUsage.daily.date);
-          this.lastResetDate = storedDate.getDate();
+          this.lastResetDate = serverUsage.daily.date; // Store full date string like "2025-11-18"
         } else {
-          this.lastResetDate = new Date().getDate();
+          this.lastResetDate = new Date().toISOString().split("T")[0]; // Current date as string
         }
 
         if (serverUsage.monthly.month) {
@@ -66,7 +65,7 @@ class GeminiRateLimit {
         this.requestCount = 0;
         this.lastRequestTime = 0;
         this.lastResetMonth = new Date().getMonth();
-        this.lastResetDate = new Date().getDate();
+        this.lastResetDate = new Date().toISOString().split("T")[0];
       }
     } catch (error) {
       console.warn(
@@ -78,7 +77,7 @@ class GeminiRateLimit {
       this.requestCount = 0;
       this.lastRequestTime = 0;
       this.lastResetMonth = new Date().getMonth();
-      this.lastResetDate = new Date().getDate();
+      this.lastResetDate = new Date().toISOString().split("T")[0];
     }
 
     this.isInitialized = true;
@@ -136,25 +135,44 @@ class GeminiRateLimit {
     await this.initializeFromStorage();
 
     const now = Date.now();
-    const currentDate = new Date().getDate();
+    const currentDate = new Date().toISOString().split("T")[0]; // Full date string like "2025-11-18"
     const currentMonth = new Date().getMonth();
+
+    console.log("🔍 Gemini reset check:", {
+      currentMonth,
+      lastResetMonth: this.lastResetMonth,
+      currentDate, // Now shows full date string
+      lastResetDate: this.lastResetDate, // Now shows full date string  
+      monthlyCount: this.monthlyRequestCount,
+      dailyCount: this.dailyRequestCount,
+    });
 
     // Reset monthly counter at start of new month
     if (currentMonth !== this.lastResetMonth) {
+      const oldMonthlyCount = this.monthlyRequestCount;
       this.monthlyRequestCount = 0;
       this.dailyRequestCount = 0;
       this.requestCount = 0;
       this.lastResetMonth = currentMonth;
       this.lastResetDate = currentDate;
-      console.log("🔄 Gemini rate limit counters reset for new month");
+      console.log(
+        `🔄 Gemini rate limit counters reset for new month (was: ${oldMonthlyCount}, now: 0)`
+      );
+      // Save the monthly reset state to server immediately
+      await this.saveToStorage();
     }
 
     // Reset daily counter at midnight
     if (currentDate !== this.lastResetDate) {
+      const oldDailyCount = this.dailyRequestCount;
       this.dailyRequestCount = 0;
       this.requestCount = 0;
       this.lastResetDate = currentDate;
-      console.log("🔄 Gemini daily counters reset");
+      console.log(
+        `🔄 Gemini daily counters reset (was: ${oldDailyCount}, now: 0, monthly preserved: ${this.monthlyRequestCount})`
+      );
+      // Save the daily reset state to server immediately
+      await this.saveToStorage();
     }
 
     // Check monthly limit

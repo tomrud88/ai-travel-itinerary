@@ -11,7 +11,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
     visible: {
       y: 0,
       opacity: 1,
-      transition: { duration: 0.6, ease: "easeOut" },
+      transition: { duration: 0.6, ease: "easeOut" as any },
     },
   };
 
@@ -20,7 +20,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
     visible: {
       scale: 1,
       rotate: 0,
-      transition: { duration: 0.8, ease: "easeOut" },
+      transition: { duration: 0.8, ease: "easeOut" as any },
     },
   };
 

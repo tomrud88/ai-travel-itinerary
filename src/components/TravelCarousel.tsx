@@ -1,10 +1,10 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useMemo } from "react";
 
-interface ImageLoadState {
-  lowQuality: boolean;
-  highQuality: boolean;
-}
+// interface ImageLoadState {
+//   lowQuality: boolean;
+//   highQuality: boolean;
+// }
 
 interface TravelCarouselProps {
   isVisible: boolean;
@@ -13,9 +13,9 @@ interface TravelCarouselProps {
 const TravelCarousel: React.FC<TravelCarouselProps> = ({ isVisible }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [imagesLoaded, setImagesLoaded] = useState(false);
-  const [loadStates, setLoadStates] = useState<Record<string, ImageLoadState>>(
-    {}
-  );
+  // const [loadStates, setLoadStates] = useState<Record<string, ImageLoadState>>(
+  //   {}
+  // );
 
   // Travel images from public folder - memoized to prevent re-renders
   const travelImages = useMemo(

@@ -43,7 +43,7 @@ export class ImageService {
 
   static async getFreepikImage(
     activityName: string,
-    activityAddress: string = "",
+    _activityAddress: string = "",
     destinationCity?: string
   ): Promise<ImageUrls | null> {
     if (!destinationCity) {

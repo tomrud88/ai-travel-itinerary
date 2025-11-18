@@ -1,0 +1,21 @@
+{
+  "functions": {
+    "api/**/*.js": {
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/images/search",
+      "destination": "/api/images/search.js"
+    },
+    {
+      "source": "/api/images/budget-status",
+      "destination": "/api/images/budget-status.js"
+    },
+    {
+      "source": "/api/gemini-usage",
+      "destination": "/api/gemini-usage.js"
+    }
+  ]
+}

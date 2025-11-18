@@ -1,12 +1,46 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import type { AIItineraryRequest, TravelPreferences } from "../../types";
-import {
+import type {
+  AIItineraryRequest,
+  TravelPreferences,
   ActivityLevel,
   AccommodationType,
   TransportationType,
   DiningPreference,
 } from "../../types";
+
+// Constants for enum-like behavior
+const ActivityLevels: Record<string, ActivityLevel> = {
+  LOW: "LOW",
+  MODERATE: "MODERATE",
+  HIGH: "HIGH",
+} as const;
+
+const AccommodationTypes: Record<string, AccommodationType> = {
+  HOTEL: "HOTEL",
+  HOSTEL: "HOSTEL",
+  APARTMENT: "APARTMENT",
+  RESORT: "RESORT",
+  BNB: "BNB",
+  CAMPING: "CAMPING",
+} as const;
+
+const TransportationTypes: Record<string, TransportationType> = {
+  FLIGHT: "FLIGHT",
+  TRAIN: "TRAIN",
+  BUS: "BUS",
+  CAR: "CAR",
+  BIKE: "BIKE",
+  WALK: "WALK",
+} as const;
+
+const DiningPreferences: Record<string, DiningPreference> = {
+  LOCAL: "LOCAL",
+  INTERNATIONAL: "INTERNATIONAL",
+  VEGETARIAN: "VEGETARIAN",
+  VEGAN: "VEGAN",
+  GLUTEN_FREE: "GLUTEN_FREE",
+} as const;
 
 interface AIItineraryGeneratorProps {
   onGenerate?: (request: AIItineraryRequest) => void;
@@ -27,10 +61,10 @@ const AIItineraryGenerator: React.FC<AIItineraryGeneratorProps> = ({
       budget: 1000,
       travelers: 2,
       interests: ["SIGHTSEEING"], // Default to sightseeing
-      accommodationType: [AccommodationType.HOTEL], // Default to hotel
-      transportationPreference: [TransportationType.WALK], // Default to walking for local transport (no flights)
-      activityLevel: ActivityLevel.LOW, // Default to relaxed pace
-      diningPreference: [DiningPreference.LOCAL], // Default to local cuisine
+      accommodationType: [AccommodationTypes.HOTEL], // Default to hotel
+      transportationPreference: [TransportationTypes.WALK], // Default to walking for local transport (no flights)
+      activityLevel: ActivityLevels.LOW, // Default to relaxed pace
+      diningPreference: [DiningPreferences.LOCAL], // Default to local cuisine
     } as TravelPreferences,
   });
 
@@ -49,12 +83,12 @@ const AIItineraryGenerator: React.FC<AIItineraryGeneratorProps> = ({
     "RELAXATION",
   ];
 
-  const accommodationOptions = Object.values(AccommodationType);
-  const transportationOptions = Object.values(TransportationType).filter(
+  const accommodationOptions = Object.values(AccommodationTypes);
+  const transportationOptions = Object.values(TransportationTypes).filter(
     (t) => t !== "FLIGHT"
   ); // Remove FLIGHT
-  const diningOptions = Object.values(DiningPreference);
-  const activityLevels = Object.values(ActivityLevel);
+  const diningOptions = Object.values(DiningPreferences);
+  const activityLevels = Object.values(ActivityLevels);
 
   const handleInterestToggle = (interest: string) => {
     const currentInterests = formData.preferences.interests;

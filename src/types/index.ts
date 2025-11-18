@@ -100,62 +100,45 @@ export interface Meal {
   rating?: number;
 }
 
-// Enums
-export enum PriceRange {
-  BUDGET = "BUDGET",
-  MID_RANGE = "MID_RANGE",
-  LUXURY = "LUXURY",
-}
+// Price Range Types
+export type PriceRange = "BUDGET" | "MID_RANGE" | "LUXURY";
 
-export enum ActivityCategory {
-  SIGHTSEEING = "SIGHTSEEING",
-  ADVENTURE = "ADVENTURE",
-  CULTURAL = "CULTURAL",
-  FOOD = "FOOD",
-  NIGHTLIFE = "NIGHTLIFE",
-  SHOPPING = "SHOPPING",
-  NATURE = "NATURE",
-  RELAXATION = "RELAXATION",
-}
+export type ActivityCategory =
+  | "SIGHTSEEING"
+  | "ADVENTURE"
+  | "CULTURAL"
+  | "FOOD"
+  | "NIGHTLIFE"
+  | "SHOPPING"
+  | "NATURE"
+  | "RELAXATION";
 
-export enum AccommodationType {
-  HOTEL = "HOTEL",
-  HOSTEL = "HOSTEL",
-  APARTMENT = "APARTMENT",
-  RESORT = "RESORT",
-  BNB = "BNB",
-  CAMPING = "CAMPING",
-}
+export type AccommodationType =
+  | "HOTEL"
+  | "HOSTEL"
+  | "APARTMENT"
+  | "RESORT"
+  | "BNB"
+  | "CAMPING";
 
-export enum TransportationType {
-  FLIGHT = "FLIGHT",
-  TRAIN = "TRAIN",
-  BUS = "BUS",
-  CAR = "CAR",
-  BIKE = "BIKE",
-  WALK = "WALK",
-}
+export type TransportationType =
+  | "FLIGHT"
+  | "TRAIN"
+  | "BUS"
+  | "CAR"
+  | "BIKE"
+  | "WALK";
 
-export enum ActivityLevel {
-  LOW = "LOW",
-  MODERATE = "MODERATE",
-  HIGH = "HIGH",
-}
+export type ActivityLevel = "LOW" | "MODERATE" | "HIGH";
 
-export enum DiningPreference {
-  LOCAL = "LOCAL",
-  INTERNATIONAL = "INTERNATIONAL",
-  VEGETARIAN = "VEGETARIAN",
-  VEGAN = "VEGAN",
-  GLUTEN_FREE = "GLUTEN_FREE",
-}
+export type DiningPreference =
+  | "LOCAL"
+  | "INTERNATIONAL"
+  | "VEGETARIAN"
+  | "VEGAN"
+  | "GLUTEN_FREE";
 
-export enum MealType {
-  BREAKFAST = "BREAKFAST",
-  LUNCH = "LUNCH",
-  DINNER = "DINNER",
-  SNACK = "SNACK",
-}
+export type MealType = "BREAKFAST" | "LUNCH" | "DINNER" | "SNACK";
 
 // AI Related types
 export interface AIItineraryRequest {
@@ -172,6 +155,7 @@ export interface AIItineraryRequest {
 export interface AIGeneratedItinerary {
   title: string;
   description: string;
+  originalDestination?: string; // Original city name from form input
   totalEstimatedCost: number;
   dailyPlans: Array<{
     day: number;
