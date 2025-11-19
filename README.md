@@ -1,43 +1,42 @@
 # 🤖✈️ AI Travel Itinerary Builder
 
-> **Intelligent Travel Planning with Modern Web Technologies**
+> **Intelligent Travel Planning with Enterprise-Grade Infrastructure**
 
-A cutting-edge web application that leverages AI to create personalized travel itineraries based on user preferences. Built with React 19.x, Vite, Tailwind CSS, and Framer Motion.
+A production-ready web application that leverages AI to create personalized travel itineraries with persistent usage tracking. Built with React 19.x, Vite, TypeScript, and enterprise-grade Vercel KV storage.
 
 ![React](https://img.shields.io/badge/React-19.1.1-blue?logo=react)
 ![Vite](https://img.shields.io/badge/Vite-7.1.7-646CFF?logo=vite)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-blue?logo=typescript)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS-38B2AC?logo=tailwind-css)
-![Framer Motion](https://img.shields.io/badge/Framer-Motion-pink?logo=framer)
+![Vercel KV](https://img.shields.io/badge/Vercel-KV-000000?logo=vercel)
 
 ## 🚀 Live Demo
 
-**Development Server**: `http://localhost:5173`
+**Production**: https://travel-guide-4jzxcpc3r-tomek198821wppls-projects.vercel.app  
+**Development**: `http://localhost:5173`
 
 ## ✨ Features
 
 ### 🤖 AI-Powered Planning
 
-- **Intelligent Itinerary Generation**: AI creates personalized daily plans
-- **Smart Recommendations**: Context-aware suggestions
-- **Budget Optimization**: AI-optimized budget planning
-- **Natural Language Processing**: Travel guides in multiple languages
+- **Google Gemini Integration**: Advanced AI itinerary generation
+- **Smart Budget Planning**: AI-optimized cost estimation
+- **Contextual Recommendations**: Location-aware suggestions
+- **Multi-Language Support**: Travel guides in multiple languages
 
-### 🎨 Modern UI/UX
+### 🏢 Enterprise Infrastructure
 
-- **Framer Motion Animations**: Smooth interactive animations
-- **Responsive Design**: Mobile-first with Tailwind CSS
-- **Glass-effect UI**: Modern backdrop blur design
-- **Interactive Cards**: Hover effects and transitions
+- **Vercel KV Storage**: Persistent usage tracking with Upstash Redis
+- **Multi-User Rate Limiting**: Global API usage limits across all users
+- **Deployment Persistence**: Counters survive deployments and updates
+- **Real-Time Monitoring**: Live usage tracking and verification
 
-### 📊 Tech Stack
+### 🎨 Modern Architecture
 
-- **React 19.1.1** - Latest React features
-- **Vite 7.1.7** - Lightning-fast development
-- **TypeScript** - Type safety
-- **Tailwind CSS** - Utility-first styling
-- **Framer Motion** - Animation library
-- **AI SDK** - Google Gemini integration
+- **React 19.1.1** - Latest React features with concurrent rendering
+- **TypeScript** - Full type safety and developer experience
+- **Serverless Functions** - Scalable API endpoints on Vercel
+- **Responsive Design** - Mobile-first with Tailwind CSS
 
 ## 🚀 Quick Start
 
@@ -52,41 +51,83 @@ npm run build
 npm run preview
 ```
 
-## 🎯 Project Structure
+## 🎯 Architecture Overview
+
+### Frontend Structure
 
 ```
 src/
 ├── components/
-│   ├── Layout/Header.tsx       # Navigation with animations
-│   ├── Travel/DestinationCard.tsx  # Interactive cards
-│   ├── AI/AIItineraryGenerator.tsx # AI interface
-│   ├── TravelCarousel.tsx      # Loading carousel
-│   └── FreepikBudgetTracker.tsx # API budget tracking
+│   ├── AI/AIItineraryGenerator.tsx    # AI interface
+│   ├── Travel/DestinationCard.tsx     # Interactive cards
+│   ├── Layout/Header.tsx              # Navigation
+│   └── FreepikBudgetTracker.tsx       # Usage monitoring
 ├── services/
-│   ├── aiService.ts           # Google Gemini integration
-│   └── imageService.ts        # Freepik API client
-├── types/index.ts             # TypeScript definitions
-└── App.tsx                    # Main application
+│   ├── aiService.ts                   # Gemini AI integration
+│   └── imageService.ts                # Freepik API client
+└── types/index.ts                     # TypeScript definitions
 ```
+
+### Backend API Structure
+
+```
+api/
+├── gemini-usage.js                    # Persistent Gemini tracking
+└── images/
+    ├── search.js                      # Freepik API with KV storage
+    └── budget-status.js               # Real-time usage stats
+```
+
+### Database Schema (Vercel KV)
+
+- **`gemini-usage-global`**: Monthly/daily/minute tracking
+- **`freepik-usage-global`**: Global rate limiting data
 
 ## 🔧 Configuration
 
-### Environment Variables
+### Required Environment Variables
 
 ```env
-VITE_GOOGLE_GENERATIVE_AI_API_KEY=your-gemini-key
+# API Keys
+VITE_GOOGLE_AI_API_KEY=your-gemini-key
 VITE_FREEPIK_API_KEY=your-freepik-key
+
+# Vercel KV Database (Auto-configured via Upstash integration)
+KV_URL=redis://...
+KV_REST_API_URL=https://...
+KV_REST_API_TOKEN=...
+KV_REST_API_READ_ONLY_TOKEN=...
 ```
 
-### Custom Tailwind Classes
+### Production Features
 
-```css
-.card {
-  @apply bg-white rounded-xl shadow-lg p-6;
-}
-.glass-effect {
-  @apply bg-white/80 backdrop-blur-sm;
-}
-```
+- ✅ **Persistent Usage Tracking**: API counters survive deployments
+- ✅ **Multi-User Rate Limiting**: Global limits across all users
+- ✅ **Real-Time Monitoring**: Live usage verification in console
+- ✅ **Enterprise Reliability**: Upstash Redis with atomic operations
 
-**Built with ❤️ for travelers everywhere** 🌍✈️
+### Setup Instructions
+
+1. **Deploy to Vercel**: Connect your repository
+2. **Add Upstash Integration**: Go to Storage → Upstash for Redis
+3. **Configure Environment**: Add API keys via Project Settings
+4. **Deploy**: Automatic KV database connection
+
+## 📊 Production Metrics
+
+### API Usage Tracking
+
+- **Real-Time Monitoring**: Live usage counters in browser console
+- **Global Rate Limits**: Shared across all users and sessions
+- **Persistent Storage**: Usage data survives deployments and restarts
+
+### Performance Features
+
+- **Serverless Architecture**: Auto-scaling Vercel functions
+- **Redis Caching**: Sub-millisecond data access with Upstash
+- **Concurrent Safety**: Atomic operations prevent race conditions
+
+---
+
+**Built with ❤️ for travelers everywhere** 🌍✈️  
+**Enterprise-ready** • **Production-tested** • **Globally scalable**
