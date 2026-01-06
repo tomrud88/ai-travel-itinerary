@@ -762,16 +762,9 @@ Generate a realistic, relaxed, and culturally immersive itinerary with concise d
           console.log(`   📡 Sending request to: gemini-api/${modelName}`);
           
           result = await generateText({
-            model: google(modelName, {
-              // Disable retries at provider level
-              structuredOutputs: false,
-            }),
+            model: google(modelName),
             prompt: prompt,
             temperature: 0.7,
-            // Set max retries to 0 to handle fallback ourselves
-            experimental_telemetry: {
-              isEnabled: false,
-            },
           });
           
           console.log(`✅ SUCCESS with model: ${modelName}`);
