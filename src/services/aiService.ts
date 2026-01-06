@@ -718,48 +718,123 @@ Generate a realistic, relaxed, and culturally immersive itinerary with concise d
         throw new Error("No models available");
       }
 
-      // Create Google AI instance with API key
-      const google = createGoogleGenerativeAI({ apiKey });
+      // Create Google AI instance with API key - DISABLE retries, we handle fallback ourselves
+      const google = createGoogleGenerativeAI({ 
+        apiKey,
+      });
 
-      // Try available models that support generateContent
+      // Helper function to check if error is quota/rate limit related
+      const isQuotaOrRateLimit = (err: any): boolean => {
+        // Check the error itself
+        const msg = String(err?.message ?? "");
+        const status = err?.status ?? err?.response?.status;
+        const statusText = String(err?.statusText ?? err?.response?.statusText ?? "");
+        
+        // IMPORTANT: Check err.cause for wrapped errors (AI_RetryError wraps the real error)
+        const causeMsg = String(err?.cause?.message ?? "");
+        const causeStatus = err?.cause?.status ?? err?.cause?.response?.status;
+        
+        // Check status codes (429 = Too Many Requests)
+        if (status === 429 || causeStatus === 429) return true;
+        
+        // Check error messages (in both error and cause)
+        const allMessages = msg + " " + causeMsg + " " + statusText;
+        return (
+          allMessages.includes("quota") ||
+          allMessages.includes("Quota exceeded") ||
+          allMessages.includes("rate limit") ||
+          allMessages.includes("Too Many Requests") ||
+          allMessages.includes("RESOURCE_EXHAUSTED") ||
+          allMessages.includes("429")
+        );
+      };
+
+      // Try available models that support generateContent - SEQUENTIAL fallback
       let result;
-      let lastError;
+      let lastError: any;
+      let quotaExceededCount = 0;
+
+      console.log(`🔄 Starting sequential model fallback (${availableModels.length} models to try)`);
 
       for (const modelName of availableModels) {
         try {
-          console.log(`🔄 Trying model: ${modelName}`);
+          console.log(`\n🎯 [${availableModels.indexOf(modelName) + 1}/${availableModels.length}] Attempting model: ${modelName}`);
+          console.log(`   📡 Sending request to: gemini-api/${modelName}`);
+          
           result = await generateText({
-            model: google(modelName),
+            model: google(modelName, {
+              // Disable retries at provider level
+              structuredOutputs: false,
+            }),
             prompt: prompt,
             temperature: 0.7,
+            // Set max retries to 0 to handle fallback ourselves
+            experimental_telemetry: {
+              isEnabled: false,
+            },
           });
-          console.log(`✅ Success with model: ${modelName}`);
-          break;
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error);
-          console.log(`❌ Failed with model ${modelName}:`, errorMessage);
-
-          // Check if it's a rate limit error - if so, stop trying more models
-          if (
-            errorMessage.includes("quota") ||
-            errorMessage.includes("rate limit") ||
-            errorMessage.includes("Too Many Requests")
-          ) {
-            console.log(
-              "⚠️ Rate limit detected, skipping remaining models and using mock response"
-            );
-            lastError = error;
-            break;
-          }
-
+          
+          console.log(`✅ SUCCESS with model: ${modelName}`);
+          console.log(`   📊 Response length: ${result.text.length} chars`);
+          break; // Success - exit loop
+          
+        } catch (error: any) {
           lastError = error;
-          continue;
+          
+          // Extract detailed error info (including cause for wrapped errors like AI_RetryError)
+          const errorMessage = error?.message ?? String(error);
+          const errorStatus = error?.status ?? error?.response?.status;
+          const errorName = error?.name ?? "Unknown";
+          
+          // Check if this is a wrapped error (like AI_RetryError)
+          const hasCause = !!error?.cause;
+          const causeMessage = error?.cause?.message ?? "";
+          const causeStatus = error?.cause?.status ?? error?.cause?.response?.status;
+          
+          console.log(`❌ FAILED with model ${modelName}:`);
+          console.log(`   Error Type: ${errorName}`);
+          console.log(`   Status Code: ${errorStatus ?? "N/A"}`);
+          console.log(`   Message: ${errorMessage.substring(0, 200)}${errorMessage.length > 200 ? "..." : ""}`);
+          
+          if (hasCause) {
+            console.log(`   ⚠️  Wrapped error detected (${errorName})`);
+            console.log(`   Cause Status: ${causeStatus ?? "N/A"}`);
+            console.log(`   Cause Message: ${causeMessage.substring(0, 200)}${causeMessage.length > 200 ? "..." : ""}`);
+          }
+          
+          // Check if this is a quota/rate limit error
+          if (isQuotaOrRateLimit(error)) {
+            quotaExceededCount++;
+            console.log(`⚠️  QUOTA/RATE LIMIT detected for ${modelName}`);
+            console.log(`   📊 Quota errors so far: ${quotaExceededCount}/${availableModels.length}`);
+            console.log(`   ➡️  Trying next model...`);
+            
+            // CONTINUE to try next model, don't break!
+            continue;
+          }
+          
+          // For non-quota errors (e.g., bad prompt), stop trying
+          console.log(`🛑 Non-quota error detected - stopping fallback`);
+          throw error;
+        }
+      }
+
+      // If we tried all models and none worked
+      if (!result) {
+        console.log(`\n❌ All ${availableModels.length} models failed`);
+        console.log(`   📊 Quota errors: ${quotaExceededCount}/${availableModels.length}`);
+        
+        if (quotaExceededCount === availableModels.length) {
+          console.log(`   🚫 ALL models hit quota limit - free tier exhausted`);
+          lastError = new Error("API_QUOTA_EXCEEDED: All models exhausted free tier quota");
+        } else {
+          console.log(`   ⚠️  Mixed errors - check logs above`);
         }
       }
 
       if (!result) {
-        console.error("🚫 All model attempts failed, using mock response");
+        console.log("🎭 Using sample itinerary (API quota exceeded or unavailable)");
+        console.log("✨ Sample data provides a realistic travel plan example");
         throw lastError || new Error("All model attempts failed");
       }
 
@@ -843,7 +918,7 @@ Generate a realistic, relaxed, and culturally immersive itinerary with concise d
   }
 
   /**
-   * Generate a mock response for testing
+   * Generate a mock response for testing or when quota is exceeded
    */
   private async generateMockResponse(
     request: AIItineraryRequest
@@ -851,10 +926,13 @@ Generate a realistic, relaxed, and culturally immersive itinerary with concise d
     // Simulate AI processing time
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
+    console.log("🎭 Generating sample itinerary (API quota exceeded)");
+    console.log("💡 This is demonstration data showing the app's capabilities");
+
     // Create a mock response that matches the AI JSON format
     const mockAIResponse = {
-      title: `Amazing ${request.duration}-Day Adventure in ${request.destinations[0]}`,
-      description: `A carefully crafted ${request.duration}-day itinerary for ${request.travelers} travelers with a budget of $${request.budget}. Experience the best of ${request.destinations[0]} with a perfect blend of culture, cuisine, and relaxation.`,
+      title: `Sample ${request.duration}-Day Adventure in ${request.destinations[0]}`,
+      description: `⚠️ SAMPLE ITINERARY: This is demonstration data as the AI API quota has been exceeded. A carefully crafted ${request.duration}-day itinerary for ${request.travelers} travelers with a budget of $${request.budget}. Experience the best of ${request.destinations[0]} with a perfect blend of culture, cuisine, and relaxation.`,
       totalEstimatedCost: request.budget * 0.9, // Use 90% of budget
       dailyPlans: Array.from({ length: request.duration }, (_, index) => ({
         day: index + 1,
@@ -968,12 +1046,14 @@ Generate a realistic, relaxed, and culturally immersive itinerary with concise d
       confidence: 0.8,
       alternatives: [],
       tips: [
+        "⚠️ This is a sample itinerary (AI quota exceeded)",
         "Book accommodations in advance for better prices",
         "Try local street food for authentic experiences",
         "Download offline maps before you travel",
         "Learn a few basic phrases in the local language",
       ],
       warnings: [
+        "📢 AI API quota exceeded - showing demonstration data",
         "Check visa requirements before traveling",
         "Consider travel insurance for international trips",
         "Research local customs and etiquette",

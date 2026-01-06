@@ -154,9 +154,13 @@ function App() {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error occurred";
 
-      if (errorMessage.includes("Daily API limit reached")) {
+      if (errorMessage.includes("API_QUOTA_EXCEEDED") || errorMessage.includes("quota exceeded")) {
         setApiError(
-          "🚫 Daily API limit reached. Please try again tomorrow or upgrade to a paid plan."
+          "🚫 API quota exhausted for all available models. Showing sample itinerary."
+        );
+      } else if (errorMessage.includes("Daily API limit reached")) {
+        setApiError(
+          "🚫 Daily API limit reached. Please try again tomorrow."
         );
       } else if (errorMessage.includes("Rate limit")) {
         setApiError("⏳ Please wait a moment before making another request.");
