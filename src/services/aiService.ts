@@ -696,7 +696,9 @@ Generate a realistic, relaxed, and culturally immersive itinerary with concise d
       await GeminiRateLimit.enforceLimit();
 
       console.log("🤖 Calling secure server-side Gemini API...");
-      console.log("🔒 API key is safely stored on the server (not exposed to client)");
+      console.log(
+        "🔒 API key is safely stored on the server (not exposed to client)"
+      );
 
       // Get available models
       const availableModels = await this.getAvailableModels();
@@ -723,7 +725,9 @@ Generate a realistic, relaxed, and culturally immersive itinerary with concise d
               availableModels.length
             }] Attempting model: ${modelName}`
           );
-          console.log(`   📡 Sending request to: /api/generate-itinerary (secure)`);
+          console.log(
+            `   📡 Sending request to: /api/generate-itinerary (secure)`
+          );
 
           // Call secure server-side endpoint
           const response = await fetch("/api/generate-itinerary", {
@@ -739,7 +743,7 @@ Generate a realistic, relaxed, and culturally immersive itinerary with concise d
 
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            
+
             // Check for specific error types
             if (response.status === 429) {
               quotaExceededCount++;
@@ -751,7 +755,10 @@ Generate a realistic, relaxed, and culturally immersive itinerary with concise d
               continue; // Try next model
             }
 
-            if (response.status === 403 && errorData.error?.includes("suspended")) {
+            if (
+              response.status === 403 &&
+              errorData.error?.includes("suspended")
+            ) {
               throw new Error(
                 "API_KEY_SUSPENDED: Your API key has been suspended. Please generate a new API key."
               );
@@ -775,23 +782,26 @@ Generate a realistic, relaxed, and culturally immersive itinerary with concise d
           console.log(`❌ FAILED with model ${modelName}:`);
           console.log(`   Error: ${errorMessage}`);
 
-          // Check if it's a quota error
+          // Check if it's a temporary/retriable error
           if (
             errorMessage.includes("quota") ||
             errorMessage.includes("rate limit") ||
-            errorMessage.includes("RESOURCE_EXHAUSTED")
+            errorMessage.includes("RESOURCE_EXHAUSTED") ||
+            errorMessage.includes("overloaded") ||
+            errorMessage.includes("503") ||
+            errorMessage.includes("Service Unavailable")
           ) {
             quotaExceededCount++;
-            console.log(`⚠️  QUOTA detected for ${modelName}`);
+            console.log(`⚠️  TEMPORARY ERROR detected for ${modelName}`);
             console.log(
-              `   📊 Quota errors so far: ${quotaExceededCount}/${availableModels.length}`
+              `   📊 Retriable errors so far: ${quotaExceededCount}/${availableModels.length}`
             );
             console.log(`   ➡️  Trying next model...`);
             continue; // Try next model
           }
 
-          // For non-quota errors, stop trying
-          console.log(`🛑 Non-quota error detected - stopping fallback`);
+          // For fatal errors (API key suspended, etc), stop trying
+          console.log(`🛑 Fatal error detected - stopping fallback`);
           throw error;
         }
       }
