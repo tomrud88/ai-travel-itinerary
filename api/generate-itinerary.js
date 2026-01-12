@@ -7,7 +7,7 @@ const requestLog = new Map();
 function cleanupOldEntries() {
   const now = Date.now();
   const oneHourAgo = now - 60 * 60 * 1000;
-  
+
   for (const [key, timestamp] of requestLog.entries()) {
     if (timestamp < oneHourAgo) {
       requestLog.delete(key);
@@ -15,23 +15,26 @@ function cleanupOldEntries() {
   }
 }
 
-// Simple rate limiting
+// Simple rate limiting - allow multiple models to try
 function checkRateLimit(ip) {
   cleanupOldEntries();
-  
+
   const now = Date.now();
-  const lastRequest = requestLog.get(ip) || 0;
-  const timeSinceLastRequest = now - lastRequest;
-  
-  // Minimum 2 seconds between requests per IP
-  if (timeSinceLastRequest < 2000) {
+  const requestTimes = requestLog.get(ip) || [];
+
+  // Allow max 10 requests per minute per IP
+  const oneMinuteAgo = now - 60000;
+  const recentRequests = requestTimes.filter((time) => time > oneMinuteAgo);
+
+  if (recentRequests.length >= 10) {
     return {
       allowed: false,
-      waitTime: 2000 - timeSinceLastRequest
+      waitTime: 60000,
     };
   }
-  
-  requestLog.set(ip, now);
+
+  recentRequests.push(now);
+  requestLog.set(ip, recentRequests);
   return { allowed: true };
 }
 
@@ -51,25 +54,33 @@ module.exports = async function handler(req, res) {
 
   try {
     // Rate limiting check
-    const clientIp = req.headers["x-forwarded-for"] || req.connection?.remoteAddress || "unknown";
+    const clientIp =
+      req.headers["x-forwarded-for"] ||
+      req.connection?.remoteAddress ||
+      "unknown";
     const rateLimit = checkRateLimit(clientIp);
-    
+
     if (!rateLimit.allowed) {
       return res.status(429).json({
         error: "Rate limit exceeded",
-        message: `Please wait ${Math.ceil(rateLimit.waitTime / 1000)} seconds before making another request`,
-        retryAfter: Math.ceil(rateLimit.waitTime / 1000)
+        message: `Please wait ${Math.ceil(
+          rateLimit.waitTime / 1000
+        )} seconds before making another request`,
+        retryAfter: Math.ceil(rateLimit.waitTime / 1000),
       });
     }
 
     // Get API key from environment variable (NEVER expose to client)
     const apiKey = process.env.GOOGLE_AI_API_KEY;
-    
+
     if (!apiKey) {
-      console.error("❌ GOOGLE_AI_API_KEY not configured in environment variables");
+      console.error(
+        "❌ GOOGLE_AI_API_KEY not configured in environment variables"
+      );
       return res.status(500).json({
         error: "API key not configured",
-        message: "The server is not properly configured. Please contact the administrator."
+        message:
+          "The server is not properly configured. Please contact the administrator.",
       });
     }
 
@@ -79,7 +90,7 @@ module.exports = async function handler(req, res) {
     if (!prompt) {
       return res.status(400).json({
         error: "Missing required field",
-        message: "Prompt is required"
+        message: "Prompt is required",
       });
     }
 
@@ -111,9 +122,8 @@ module.exports = async function handler(req, res) {
       success: true,
       text,
       model: modelName,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error("❌ Error generating itinerary:", error);
 
@@ -121,29 +131,36 @@ module.exports = async function handler(req, res) {
     if (error.message?.includes("API key not valid")) {
       return res.status(401).json({
         error: "Invalid API key",
-        message: "The API key is invalid or has been revoked. Please check your configuration."
+        message:
+          "The API key is invalid or has been revoked. Please check your configuration.",
       });
     }
 
-    if (error.message?.includes("quota") || error.message?.includes("RESOURCE_EXHAUSTED")) {
+    if (
+      error.message?.includes("quota") ||
+      error.message?.includes("RESOURCE_EXHAUSTED")
+    ) {
       return res.status(429).json({
         error: "Quota exceeded",
-        message: "The API quota has been exceeded. Please try again later."
+        message: "The API quota has been exceeded. Please try again later.",
       });
     }
 
     if (error.message?.includes("suspended")) {
       return res.status(403).json({
         error: "API key suspended",
-        message: "The API key has been suspended. Please generate a new API key."
+        message:
+          "The API key has been suspended. Please generate a new API key.",
       });
     }
 
     // Generic error response
     return res.status(500).json({
       error: "Internal server error",
-      message: error.message || "An unexpected error occurred while generating the itinerary",
-      details: process.env.NODE_ENV === "development" ? error.stack : undefined
+      message:
+        error.message ||
+        "An unexpected error occurred while generating the itinerary",
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
     });
   }
 };
