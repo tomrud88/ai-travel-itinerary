@@ -16,6 +16,10 @@
     {
       "source": "/api/gemini-usage",
       "destination": "/api/gemini-usage.js"
+    },
+    {
+      "source": "/api/generate-itinerary",
+      "destination": "/api/generate-itinerary.js"
     }
   ]
 }

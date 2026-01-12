@@ -1,6 +1,4 @@
 import type { AIItineraryRequest, AIItineraryResponse } from "../types";
-import { generateText } from "ai";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
 
 // Gemini API usage tracking with secure server-side persistent storage
 class GeminiRateLimit {
@@ -686,7 +684,7 @@ Generate a realistic, relaxed, and culturally immersive itinerary with concise d
   }
 
   /**
-   * Call AI service to generate itinerary using Google Gemini
+   * Call AI service to generate itinerary using Google Gemini (SECURE SERVER-SIDE)
    */
   async generateItinerary(
     request: AIItineraryRequest
@@ -697,19 +695,10 @@ Generate a realistic, relaxed, and culturally immersive itinerary with concise d
       // Enforce rate limiting before making API call
       await GeminiRateLimit.enforceLimit();
 
-      console.log("🤖 Calling Google Gemini with prompt...");
+      console.log("🤖 Calling secure server-side Gemini API...");
+      console.log("🔒 API key is safely stored on the server (not exposed to client)");
 
-      // Check if API key is available
-      const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY;
-      if (!apiKey) {
-        console.error(
-          "❌ Google AI API key not found. Please set VITE_GOOGLE_AI_API_KEY in your .env file"
-        );
-        throw new Error("API key not configured");
-      }
-
-      // First, let's see what models are actually available
-      console.log("🔍 Checking available models...");
+      // Get available models
       const availableModels = await this.getAvailableModels();
       console.log("📋 Available models:", availableModels);
 
@@ -718,95 +707,90 @@ Generate a realistic, relaxed, and culturally immersive itinerary with concise d
         throw new Error("No models available");
       }
 
-      // Create Google AI instance with API key - DISABLE retries, we handle fallback ourselves
-      const google = createGoogleGenerativeAI({ 
-        apiKey,
-      });
-
-      // Helper function to check if error is quota/rate limit related
-      const isQuotaOrRateLimit = (err: any): boolean => {
-        // Check the error itself
-        const msg = String(err?.message ?? "");
-        const status = err?.status ?? err?.response?.status;
-        const statusText = String(err?.statusText ?? err?.response?.statusText ?? "");
-        
-        // IMPORTANT: Check err.cause for wrapped errors (AI_RetryError wraps the real error)
-        const causeMsg = String(err?.cause?.message ?? "");
-        const causeStatus = err?.cause?.status ?? err?.cause?.response?.status;
-        
-        // Check status codes (429 = Too Many Requests)
-        if (status === 429 || causeStatus === 429) return true;
-        
-        // Check error messages (in both error and cause)
-        const allMessages = msg + " " + causeMsg + " " + statusText;
-        return (
-          allMessages.includes("quota") ||
-          allMessages.includes("Quota exceeded") ||
-          allMessages.includes("rate limit") ||
-          allMessages.includes("Too Many Requests") ||
-          allMessages.includes("RESOURCE_EXHAUSTED") ||
-          allMessages.includes("429")
-        );
-      };
-
-      // Try available models that support generateContent - SEQUENTIAL fallback
+      // Try available models sequentially via server-side API
       let result;
       let lastError: any;
       let quotaExceededCount = 0;
 
-      console.log(`🔄 Starting sequential model fallback (${availableModels.length} models to try)`);
+      console.log(
+        `🔄 Starting sequential model fallback (${availableModels.length} models to try)`
+      );
 
       for (const modelName of availableModels) {
         try {
-          console.log(`\n🎯 [${availableModels.indexOf(modelName) + 1}/${availableModels.length}] Attempting model: ${modelName}`);
-          console.log(`   📡 Sending request to: gemini-api/${modelName}`);
-          
-          result = await generateText({
-            model: google(modelName),
-            prompt: prompt,
-            temperature: 0.7,
+          console.log(
+            `\n🎯 [${availableModels.indexOf(modelName) + 1}/${
+              availableModels.length
+            }] Attempting model: ${modelName}`
+          );
+          console.log(`   📡 Sending request to: /api/generate-itinerary (secure)`);
+
+          // Call secure server-side endpoint
+          const response = await fetch("/api/generate-itinerary", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              prompt,
+              modelName,
+            }),
           });
-          
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            
+            // Check for specific error types
+            if (response.status === 429) {
+              quotaExceededCount++;
+              console.log(`⚠️  RATE LIMIT detected for ${modelName}`);
+              console.log(
+                `   📊 Quota errors so far: ${quotaExceededCount}/${availableModels.length}`
+              );
+              console.log(`   ➡️  Trying next model...`);
+              continue; // Try next model
+            }
+
+            if (response.status === 403 && errorData.error?.includes("suspended")) {
+              throw new Error(
+                "API_KEY_SUSPENDED: Your API key has been suspended. Please generate a new API key."
+              );
+            }
+
+            throw new Error(
+              errorData.message || `Server error: ${response.status}`
+            );
+          }
+
+          const data = await response.json();
+          result = { text: data.text };
+
           console.log(`✅ SUCCESS with model: ${modelName}`);
           console.log(`   📊 Response length: ${result.text.length} chars`);
           break; // Success - exit loop
-          
         } catch (error: any) {
           lastError = error;
-          
-          // Extract detailed error info (including cause for wrapped errors like AI_RetryError)
           const errorMessage = error?.message ?? String(error);
-          const errorStatus = error?.status ?? error?.response?.status;
-          const errorName = error?.name ?? "Unknown";
-          
-          // Check if this is a wrapped error (like AI_RetryError)
-          const hasCause = !!error?.cause;
-          const causeMessage = error?.cause?.message ?? "";
-          const causeStatus = error?.cause?.status ?? error?.cause?.response?.status;
-          
+
           console.log(`❌ FAILED with model ${modelName}:`);
-          console.log(`   Error Type: ${errorName}`);
-          console.log(`   Status Code: ${errorStatus ?? "N/A"}`);
-          console.log(`   Message: ${errorMessage.substring(0, 200)}${errorMessage.length > 200 ? "..." : ""}`);
-          
-          if (hasCause) {
-            console.log(`   ⚠️  Wrapped error detected (${errorName})`);
-            console.log(`   Cause Status: ${causeStatus ?? "N/A"}`);
-            console.log(`   Cause Message: ${causeMessage.substring(0, 200)}${causeMessage.length > 200 ? "..." : ""}`);
-          }
-          
-          // Check if this is a quota/rate limit error
-          if (isQuotaOrRateLimit(error)) {
+          console.log(`   Error: ${errorMessage}`);
+
+          // Check if it's a quota error
+          if (
+            errorMessage.includes("quota") ||
+            errorMessage.includes("rate limit") ||
+            errorMessage.includes("RESOURCE_EXHAUSTED")
+          ) {
             quotaExceededCount++;
-            console.log(`⚠️  QUOTA/RATE LIMIT detected for ${modelName}`);
-            console.log(`   📊 Quota errors so far: ${quotaExceededCount}/${availableModels.length}`);
+            console.log(`⚠️  QUOTA detected for ${modelName}`);
+            console.log(
+              `   📊 Quota errors so far: ${quotaExceededCount}/${availableModels.length}`
+            );
             console.log(`   ➡️  Trying next model...`);
-            
-            // CONTINUE to try next model, don't break!
-            continue;
+            continue; // Try next model
           }
-          
-          // For non-quota errors (e.g., bad prompt), stop trying
+
+          // For non-quota errors, stop trying
           console.log(`🛑 Non-quota error detected - stopping fallback`);
           throw error;
         }
@@ -815,42 +799,36 @@ Generate a realistic, relaxed, and culturally immersive itinerary with concise d
       // If we tried all models and none worked
       if (!result) {
         console.log(`\n❌ All ${availableModels.length} models failed`);
-        console.log(`   📊 Quota errors: ${quotaExceededCount}/${availableModels.length}`);
-        
+        console.log(
+          `   📊 Quota errors: ${quotaExceededCount}/${availableModels.length}`
+        );
+
         if (quotaExceededCount === availableModels.length) {
           console.log(`   🚫 ALL models hit quota limit - free tier exhausted`);
-          lastError = new Error("API_QUOTA_EXCEEDED: All models exhausted free tier quota");
-        } else {
-          console.log(`   ⚠️  Mixed errors - check logs above`);
+          lastError = new Error(
+            "API_QUOTA_EXCEEDED: All models exhausted free tier quota"
+          );
         }
       }
 
       if (!result) {
-        console.log("🎭 Using sample itinerary (API quota exceeded or unavailable)");
-        console.log("✨ Sample data provides a realistic travel plan example");
+        console.log(
+          "🎭 Using sample itinerary (API quota exceeded or unavailable)"
+        );
         throw lastError || new Error("All model attempts failed");
       }
 
       console.log("✅ Gemini response received:", result.text);
       console.log("🔍 Response length:", result.text.length);
-      console.log("🔍 Response ends with:", result.text.slice(-100));
 
       // Try to parse the JSON response from Gemini
       try {
         console.log("🔍 Attempting to parse JSON response...");
-        console.log(
-          "🔍 Raw response text (first 500 chars):",
-          result.text.substring(0, 500)
-        );
-        console.log(
-          "🔍 Raw response text (last 500 chars):",
-          result.text.substring(result.text.length - 500)
-        );
 
         // Clean the response text
         let cleanedText = result.text.trim();
 
-        // Check if the response starts with ``` and remove it
+        // Remove code fences if present
         if (cleanedText.startsWith("```json")) {
           cleanedText = cleanedText.replace(/^```json\s*/, "");
         }
@@ -861,26 +839,13 @@ Generate a realistic, relaxed, and culturally immersive itinerary with concise d
           cleanedText = cleanedText.replace(/\s*```$/, "");
         }
 
-        console.log(
-          "🧹 Cleaned text (first 200 chars):",
-          cleanedText.substring(0, 200)
-        );
-        console.log(
-          "🧹 Cleaned text (last 200 chars):",
-          cleanedText.substring(cleanedText.length - 200)
-        );
-
         const jsonResponse = JSON.parse(cleanedText);
         console.log("✅ Parsed AI response:", jsonResponse);
         console.log("🔍 Daily plans count:", jsonResponse.dailyPlans?.length);
-        console.log(
-          "🔍 First activity name:",
-          jsonResponse.dailyPlans?.[0]?.activities?.[0]?.name
-        );
 
         // Return the raw AI response directly for rich UI display
         return {
-          itinerary: jsonResponse, // Return raw AI JSON instead of transformed
+          itinerary: jsonResponse,
           confidence: 0.9,
           alternatives: [],
           tips: jsonResponse.tips || [
