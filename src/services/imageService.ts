@@ -170,8 +170,6 @@ export class ImageService {
         data.images[0]
       );
 
-      // Display updated Freepik usage after successful request
-      setTimeout(() => this.displayFreepikUsage(), 100); // Small delay to ensure server file is updated
       const imageUrl = data.images[0];
       const urls: ImageUrls = { url: imageUrl.url };
       this.imageCache.set(query.toLowerCase(), urls);
@@ -516,36 +514,5 @@ export class ImageService {
     }
 
     return query;
-  }
-
-  /**
-   * Fetch and display Freepik usage statistics
-   */
-  private static async displayFreepikUsage(): Promise<void> {
-    try {
-      const response = await fetch("/api/images/budget-status");
-      if (response.ok) {
-        const usage = await response.json();
-        const remainingMonthly = usage.monthlyLimit - usage.monthlyUsed;
-        const remainingDaily = usage.dailyLimit - usage.dailyUsed;
-        const percentageUsed = (
-          (usage.monthlyUsed / usage.monthlyLimit) *
-          100
-        ).toFixed(1);
-
-        console.log(`📸 Freepik Image API Usage Tracking (Free Tier):`);
-        console.log(
-          `   Monthly: ${usage.monthlyUsed}/${usage.monthlyLimit} requests`
-        );
-        console.log(
-          `   Daily: ${usage.dailyUsed}/${usage.dailyLimit} requests`
-        );
-        console.log(`   Remaining today: ${remainingDaily} requests`);
-        console.log(`   Remaining this month: ${remainingMonthly} requests`);
-        console.log(`   Usage: ${percentageUsed}% of monthly limit`);
-      }
-    } catch (error) {
-      console.warn("⚠️ Failed to fetch Freepik usage statistics:", error);
-    }
   }
 }
