@@ -61,10 +61,10 @@ src/
 │   ├── AI/AIItineraryGenerator.tsx    # AI interface
 │   ├── Travel/DestinationCard.tsx     # Interactive cards
 │   ├── Layout/Header.tsx              # Navigation
-│   └── FreepikBudgetTracker.tsx       # Usage monitoring
+│   └── FreepikBudgetTracker.tsx       # Usage monitoring (legacy)
 ├── services/
 │   ├── aiService.ts                   # Gemini AI integration
-│   └── imageService.ts                # Freepik API client
+│   └── imageService.ts                # Pexels API client
 └── types/index.ts                     # TypeScript definitions
 ```
 
@@ -74,14 +74,13 @@ src/
 api/
 ├── gemini-usage.js                    # Persistent Gemini tracking
 └── images/
-    ├── search.js                      # Freepik API with KV storage
+    ├── search.js                      # Pexels image search API
     └── budget-status.js               # Real-time usage stats
 ```
 
 ### Database Schema (Vercel KV)
 
 - **`gemini-usage-global`**: Monthly/daily/minute tracking
-- **`freepik-usage-global`**: Global rate limiting data
 
 ## 🔧 Configuration
 
@@ -90,7 +89,7 @@ api/
 ```env
 # API Keys
 VITE_GOOGLE_AI_API_KEY=your-gemini-key
-VITE_FREEPIK_API_KEY=your-freepik-key
+PEXELS_API_KEY=your-pexels-key
 
 # Vercel KV Database (Auto-configured via Upstash integration)
 KV_URL=redis://...
