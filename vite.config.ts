@@ -9,13 +9,9 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
 
   // Make sure the API key is available in process.env for server-side code
-  process.env.VITE_FREEPIK_API_KEY = env.VITE_FREEPIK_API_KEY;
+  process.env.PEXELS_API_KEY = env.PEXELS_API_KEY;
 
   return {
     plugins: [react(), tailwindcss(), apiPlugin()],
-    define: {
-      // Make sure environment variables are available
-      __FREEPIK_API_KEY__: JSON.stringify(env.VITE_FREEPIK_API_KEY || ""),
-    },
   };
 });

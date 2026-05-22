@@ -1,5 +1,5 @@
 import type { Plugin } from "vite";
-import { searchFreepikImages, optimizeSearchQuery } from "../server/api/images";
+import { searchPexelsImages, optimizeSearchQuery } from "../server/api/images";
 
 export function apiPlugin(): Plugin {
   return {
@@ -59,7 +59,7 @@ export function apiPlugin(): Plugin {
                 return;
               }
 
-              const images = await searchFreepikImages(
+              const images = await searchPexelsImages(
                 optimizedQuery,
                 limit,
                 orientation
@@ -149,7 +149,7 @@ export function apiPlugin(): Plugin {
                   if (allImages.length >= limit) break;
 
                   const remainingNeeded = limit - allImages.length;
-                  const images = await searchFreepikImages(
+                  const images = await searchPexelsImages(
                     term,
                     Math.min(remainingNeeded, 5),
                     "horizontal" // Use horizontal orientation for city galleries
@@ -207,7 +207,7 @@ export function apiPlugin(): Plugin {
             const { getFreepikBudgetStatus } = await import(
               "../server/api/images"
             );
-            const budgetStatus = getFreepikBudgetStatus();
+            const budgetStatus = getFreepikBudgetStatus(); // returns Pexels rate limit info
 
             res.setHeader("Content-Type", "application/json");
             res.setHeader("Access-Control-Allow-Origin", "*");

@@ -1,5 +1,5 @@
 /**
- * Freepik-Only Image Service - No fallback images, real API only
+ * Pexels Image Service
  */
 
 interface ImageUrls {
@@ -32,7 +32,7 @@ export class ImageService {
     // Check if we've exceeded the limit
     if (this.requestCount >= this.MAX_REQUESTS_PER_MINUTE) {
       console.warn(
-        `⚠️ Client-side Freepik rate limit reached (${this.MAX_REQUESTS_PER_MINUTE}/min). Skipping request.`
+        `⚠️ Client-side Pexels rate limit reached (${this.MAX_REQUESTS_PER_MINUTE}/min). Skipping request.`
       );
       return false;
     }
@@ -41,7 +41,7 @@ export class ImageService {
     return true;
   }
 
-  static async getFreepikImage(
+  static async getPexelsImage(
     activityName: string,
     _activityAddress: string = "",
     destinationCity?: string
@@ -80,7 +80,7 @@ export class ImageService {
     });
 
     if (this.imageCache.has(cacheKey)) {
-      console.log(`🎯 Using cached Freepik image for: "${searchQuery}"`);
+      console.log(`🎯 Using cached Pexels image for: "${searchQuery}"`);
       return this.imageCache.get(cacheKey)!;
     }
 
@@ -104,17 +104,17 @@ export class ImageService {
     // Check rate limiting before making request
     if (!this.checkRateLimit()) {
       console.log(
-        `🚫 Skipping Freepik request due to rate limiting: "${searchQuery}"`
+        `🚫 Skipping Pexels request due to rate limiting: "${searchQuery}"`
       );
       return null;
     }
 
     // Create new request promise and store it
-    const requestPromise = this.makeFreepikRequest(searchQuery);
+    const requestPromise = this.makePexelsRequest(searchQuery);
     this.pendingRequests.set(cacheKey, requestPromise);
 
     try {
-      const result = await this.makeFreepikRequest(searchQuery);
+      const result = await this.makePexelsRequest(searchQuery);
 
       // Clean up pending request
       this.pendingRequests.delete(cacheKey);
@@ -123,15 +123,15 @@ export class ImageService {
     } catch (error) {
       // Clean up pending request on error
       this.pendingRequests.delete(cacheKey);
-      console.error(`💥 Freepik API error for "${searchQuery}":`, error);
+      console.error(`💥 Pexels API error for "${searchQuery}":`, error);
       return null;
     }
   }
 
-  private static async makeFreepikRequest(
+  private static async makePexelsRequest(
     query: string
   ): Promise<ImageUrls | null> {
-    console.log(`🔍 Server-side Freepik search for: "${query}"`);
+    console.log(`🔍 Server-side Pexels search for: "${query}"`);
 
     const response = await fetch("/api/images/search", {
       method: "POST",
@@ -150,14 +150,14 @@ export class ImageService {
       const errorText = await response.text();
 
       if (response.status === 429) {
-        console.log(`⏳ Freepik rate limit exceeded for: "${query}"`);
+        console.log(`⏳ Pexels rate limit exceeded for: "${query}"`);
       } else if (
         errorText.includes("rate limit") ||
         errorText.includes("Rate limit")
       ) {
-        console.log(`⏳ Freepik rate limit error for: "${query}"`);
+        console.log(`⏳ Pexels rate limit error for: "${query}"`);
       } else {
-        console.log(`❌ Freepik API error ${response.status} for: "${query}"`);
+        console.log(`❌ Pexels API error ${response.status} for: "${query}"`);
       }
       return null;
     }
@@ -166,7 +166,7 @@ export class ImageService {
 
     if (data.images && data.images.length > 0) {
       console.log(
-        `✅ Found real Freepik image for: "${query}"`,
+        `✅ Found Pexels image for: "${query}"`,
         data.images[0]
       );
 
@@ -176,7 +176,7 @@ export class ImageService {
       return urls;
     }
 
-    console.log(`📷 No Freepik results for: "${query}"`);
+    console.log(`📷 No Pexels results for: "${query}"`);
     return null;
   }
 
@@ -196,7 +196,7 @@ export class ImageService {
       return [];
     }
 
-    console.log(`🏙️ Getting Freepik gallery for: "${destination}"`);
+    console.log(`🏙️ Getting Pexels gallery for: "${destination}"`);
 
     // Check gallery cache first
     const cacheKey = destination.toLowerCase();
@@ -229,7 +229,7 @@ export class ImageService {
     // Check rate limiting before making request
     if (!this.checkRateLimit()) {
       console.log(
-        `🚫 Skipping Freepik city gallery request due to rate limiting: "${finalQuery}"`
+        `🚫 Skipping Pexels city gallery request due to rate limiting: "${finalQuery}"`
       );
       return [];
     }
@@ -252,14 +252,14 @@ export class ImageService {
         const errorText = await response.text();
 
         if (response.status === 429) {
-          console.log(`⏳ Freepik city gallery rate limit exceeded`);
+          console.log(`⏳ Pexels city gallery rate limit exceeded`);
         } else if (
           errorText.includes("rate limit") ||
           errorText.includes("Rate limit")
         ) {
-          console.log(`⏳ Freepik city gallery rate limit error`);
+          console.log(`⏳ Pexels city gallery rate limit error`);
         } else {
-          console.log(`❌ Freepik city gallery API error ${response.status}`);
+          console.log(`❌ Pexels city gallery API error ${response.status}`);
         }
         return [];
       }
@@ -268,7 +268,7 @@ export class ImageService {
 
       if (data.images && data.images.length > 0) {
         console.log(
-          `✅ Found ${data.images.length} Freepik city images for distribution`
+          `✅ Found ${data.images.length} Pexels city images for distribution`
         );
         const urls = data.images.map((img: ImageUrls) => img.url);
 
@@ -281,10 +281,10 @@ export class ImageService {
         return urls;
       }
 
-      console.log(`📷 No Freepik city gallery results for: "${destination}"`);
+      console.log(`📷 No Pexels city gallery results for: "${destination}"`);
       return [];
     } catch (error) {
-      console.error(`💥 Freepik city gallery error:`, error);
+      console.error(`💥 Pexels city gallery error:`, error);
       return [];
     }
   }
@@ -294,8 +294,8 @@ export class ImageService {
     activityAddress: string = "",
     destinationCity?: string
   ): Promise<string | null> {
-    // Use the getFreepikImage method for individual activity searches
-    const result = await this.getFreepikImage(
+    // Use the getPexelsImage method for individual activity searches
+    const result = await this.getPexelsImage(
       activityName,
       activityAddress,
       destinationCity
