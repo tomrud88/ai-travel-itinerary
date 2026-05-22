@@ -143,8 +143,8 @@ async function makePexelsRequest(
 export function optimizeSearchQuery(
   activityName: string,
   activityAddress: string = "",
-  activityCategory?: string,
-  userInterests?: string[],
+  _activityCategory?: string,
+  _userInterests?: string[],
   providedCity: string = ""
 ): string {
   let cleanQuery = activityName.trim();
